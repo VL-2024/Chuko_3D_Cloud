@@ -117,9 +117,12 @@
   let roundPhysicsFrozen = false;
 
   // --- TEMPORARY diagnostics for the "SAKA doesn't touch the pile" issue ---
-  // Safe to flip to false (or delete this block + its call sites) once the
-  // real cause is confirmed and the fix is verified in a real browser.
-  const DEBUG_CONTACT = true;
+  // Confirmed fixed (2026-09): the real Havok collision trigger fires
+  // ~1.2s after throw, matching the ballistic flight time, and the scatter
+  // completes naturally without the forced-completion fallback. Left this
+  // infrastructure in place (flip to true) in case similar diagnosis is
+  // needed again; safe to delete entirely once the fix has proven stable.
+  const DEBUG_CONTACT = false;
   let debugLastLogAt = 0;
   let debugRoundStartAt = 0;
   function debugLog(label, data) {
@@ -2752,15 +2755,19 @@
   // check in applyImpactBoostIfNeeded() is only a fallback in case a
   // collision event is ever missed (sleeping bodies, engine quirks, etc.).
   function onSakaCollision(evt) {
+    // Once impactBoosted is set, everything else is post-contact physics
+    // noise (SAKA settling against neighbouring pieces/field) - not logged
+    // to keep the console usable if DEBUG_CONTACT is re-enabled later.
+    if (throwState.impactBoosted) return;
     const otherNode = evt?.collidedAgainst?.transformNode;
     const name = otherNode?.name || '(none)';
     debugLog('HAVOK COLLISION EVENT', {
       with: name,
       type: evt?.type,
-      thrown, throwStateActive: throwState.active, impactBoosted: throwState.impactBoosted,
+      thrown, throwStateActive: throwState.active,
       scenarioActive: scenarioRuntime.active
     });
-    if (!thrown || !throwState.active || throwState.impactBoosted) return;
+    if (!thrown || !throwState.active) return;
     if (!scenarioRuntime.active || C.game?.deterministicScatter === false) return;
     if (!name.startsWith('chuko-') && name !== 'KHAN') return;
     triggerScenarioContact(null, 'collision:' + name);
