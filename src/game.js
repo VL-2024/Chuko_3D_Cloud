@@ -5,10 +5,9 @@
   const LMS = window.X2LMS;
   const ScenarioCfg = window.X2ChukoScenarioConfig;
   const LMS_CFG = window.X2_GAME_CONFIG || {};
+  const DICT = window.CHUKO_I18N || { RU: {} };
   const ui = {
     canvas: document.getElementById('renderCanvas'),
-    throwBtn: document.getElementById('throwBtn'),
-    resetBtn: document.getElementById('resetBtn'),
     fps: document.getElementById('fps'),
     frameMs: document.getElementById('frameMs'),
     bodyCount: document.getElementById('bodyCount'),
@@ -24,14 +23,54 @@
     tuneDefaultsBtn: document.getElementById('tuneDefaultsBtn'),
     tuneCopyBtn: document.getElementById('tuneCopyBtn'),
     tuneOutput: document.getElementById('tuneOutput'),
-    demoModeBtn: document.getElementById('demoModeBtn'),
-    realModeBtn: document.getElementById('realModeBtn'),
-    ticketNo: document.getElementById('ticketNo'),
-    balanceValue: document.getElementById('balanceValue'),
-    resultCard: document.getElementById('resultCard'),
-    resultMain: document.getElementById('resultMain'),
-    resultSub: document.getElementById('resultSub'),
-    fieldPhoto: document.querySelector('.field-photo')
+    fieldPhoto: document.querySelector('.field-photo'),
+
+    balance: document.getElementById('balance-value'),
+    deposit: document.getElementById('deposit-btn'),
+    modeSwitch: document.getElementById('mode-switch'),
+
+    denomStrip: document.getElementById('denom-strip'),
+    denomViewport: document.getElementById('denom-viewport'),
+    denomTrack: document.getElementById('denom-track'),
+    denomPrev: document.getElementById('denom-prev'),
+    denomNext: document.getElementById('denom-next'),
+
+    action: document.getElementById('action-btn'),
+    autoPlay: document.getElementById('autoplay-btn'),
+    autoMenu: document.getElementById('autoplay-menu'),
+    autoMenuTitle: document.getElementById('autoplay-menu-title'),
+    autoCounts: document.getElementById('autoplay-counts'),
+
+    status: document.getElementById('status'),
+    toast: document.getElementById('result-toast'),
+    celebration: document.getElementById('celebration-layer'),
+    knocked: document.getElementById('score-knocked'),
+    scoreWin: document.getElementById('score-win'),
+    khan: document.getElementById('score-khan'),
+
+    info: document.getElementById('info-btn'),
+    infoMenu: document.getElementById('info-menu'),
+    infoPayout: document.getElementById('info-payout'),
+    infoHow: document.getElementById('info-how'),
+    infoTickets: document.getElementById('info-tickets'),
+
+    sound: document.getElementById('sound-btn'),
+    music: document.getElementById('music-btn'),
+    ticketNumber: document.getElementById('ticket-number'),
+
+    helpModal: document.getElementById('help-modal'),
+    helpClose: document.getElementById('help-close'),
+    helpOk: document.getElementById('help-ok'),
+
+    payoutModal: document.getElementById('payout-modal'),
+    payoutClose: document.getElementById('payout-close'),
+    payoutOk: document.getElementById('payout-ok'),
+    payoutGrid: document.getElementById('payout-grid'),
+
+    ticketsModal: document.getElementById('tickets-modal'),
+    ticketsClose: document.getElementById('tickets-close'),
+    ticketsOk: document.getElementById('tickets-ok'),
+    ticketsList: document.getElementById('tickets-list')
   };
 
   let engine;
@@ -84,6 +123,59 @@
     ticketReady: false,
     resultShown: false,
     busy: false
+  };
+
+  // ---------------------------------------------------------------------
+  // Full-version UI state ported from v20.61 (audio, autoplay, ticket
+  // history). The 3D scenario/physics engine above remains the single
+  // source of truth for game state; everything here only presents it.
+  // ---------------------------------------------------------------------
+  const audioSettings = {
+    soundEnabled: Boolean(LMS_CFG.audio?.soundEnabled ?? true),
+    musicEnabled: Boolean(LMS_CFG.audio?.musicEnabled ?? false),
+    soundVolume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.soundVolume ?? 0.22))),
+    musicVolume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.musicVolume ?? 0.20)))
+  };
+  const musicTracks = Array.isArray(LMS_CFG.audio?.musicTracks) ? LMS_CFG.audio.musicTracks.filter(Boolean) : [];
+  const voiceTags = Array.isArray(LMS_CFG.audio?.voiceTags) ? LMS_CFG.audio.voiceTags.filter(Boolean) : [];
+  const voiceSettings = {
+    volume: Math.max(0, Math.min(1, Number(LMS_CFG.audio?.voiceVolume ?? 0.72))),
+    minDelayMs: Math.max(5000, Number(LMS_CFG.audio?.voiceMinDelayMs ?? 28000)),
+    maxDelayMs: Math.max(7000, Number(LMS_CFG.audio?.voiceMaxDelayMs ?? 45000)),
+    duckFactor: Math.max(0.15, Math.min(1, Number(LMS_CFG.audio?.musicDuckFactor ?? 0.68)))
+  };
+  const soundFiles = {
+    throw: LMS_CFG.audio?.soundFiles?.throw || null,
+    impact: LMS_CFG.audio?.soundFiles?.impact || null,
+    khanImpact: LMS_CFG.audio?.soundFiles?.khanImpact || null,
+    win: LMS_CFG.audio?.soundFiles?.win || null
+  };
+  const effectFileVolume = Math.max(0, Math.min(1, Number(LMS_CFG.audio?.effectFileVolume ?? 0.42)));
+
+  try {
+    const storedSound = localStorage.getItem('x2-chuko-sound');
+    const storedMusic = localStorage.getItem('x2-chuko-music');
+    if (storedSound !== null) audioSettings.soundEnabled = storedSound === '1';
+    if (storedMusic !== null) audioSettings.musicEnabled = storedMusic === '1';
+  } catch (_) {}
+
+  const audioRuntime = {
+    ctx: null, master: null, sfxGain: null, musicGain: null,
+    musicElement: null, musicTrackIndex: -1,
+    voiceElement: null, voiceTimer: null, voiceTagIndex: -1,
+    impactTimer: null, lastPhase: null
+  };
+
+  const autoPlay = {
+    active: false,
+    stopRequested: false,
+    selected: null,
+    total: 0,
+    completed: 0,
+    remaining: 0,
+    fixedStake: null,
+    nextTimer: null,
+    throwTimer: null
   };
   const scenarioRuntime = {
     plan: null,
@@ -616,7 +708,7 @@
     console.error(error);
     ui.fatal.hidden = false;
     ui.fatalText.textContent = String(error?.message || error || 'Unknown error');
-    ui.throwBtn.disabled = true;
+    if (ui.action) ui.action.disabled = true;
   }
 
   function isMobile() {
@@ -1392,73 +1484,597 @@
     scenarioRuntime.active = false;
   }
 
+  function tr(key) {
+    const lang = DICT[gameState.language] || DICT.RU || {};
+    return lang[key] || DICT.RU?.[key] || key;
+  }
+
   function formatMoney(value) {
-    const n = Number(value || 0);
-    return `${Number.isInteger(n) ? n : n.toFixed(2)} ${gameState.currencyDisplay || gameState.currency}`;
+    if (value == null || !Number.isFinite(Number(value))) return '—';
+    return Number(value).toLocaleString('ru-RU');
   }
 
   function currentTicketLabel() {
     return gameState.ticket?.ticketId ? `#${gameState.ticket.ticketId}` : '—';
   }
 
-  function renderDenominationButtons() {
-    const bar = document.querySelector('.denom-bar');
-    if (!bar) return;
-    const unit = bar.querySelector('em');
-    bar.querySelectorAll('[data-denom]').forEach(node => node.remove());
-    const values = [...new Set((gameState.denominations || []).map(Number).filter(v=>Number.isFinite(v)&&v>0))];
+  function applyTranslations() {
+    document.documentElement.lang = gameState.language === 'KG' ? 'ky' : 'ru';
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
+    renderModeSwitch();
+    renderAudioControls();
+    renderTicketNumber();
+    renderPayoutGrid();
+    renderState();
+  }
+
+  // --- Audio (ported from CHUKO v20.61) -------------------------------
+  function saveAudioSettings() {
+    try {
+      localStorage.setItem('x2-chuko-sound', audioSettings.soundEnabled ? '1' : '0');
+      localStorage.setItem('x2-chuko-music', audioSettings.musicEnabled ? '1' : '0');
+    } catch (_) {}
+  }
+
+  function ensureAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return Promise.resolve(null);
+    if (!audioRuntime.ctx) {
+      const ctx = new AudioCtx();
+      const master = ctx.createGain();
+      const sfxGain = ctx.createGain();
+      const musicGain = ctx.createGain();
+      master.gain.value = 1;
+      sfxGain.gain.value = audioSettings.soundEnabled ? audioSettings.soundVolume : 0;
+      musicGain.gain.value = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+      sfxGain.connect(master); musicGain.connect(master); master.connect(ctx.destination);
+      audioRuntime.ctx = ctx; audioRuntime.master = master; audioRuntime.sfxGain = sfxGain; audioRuntime.musicGain = musicGain;
+    }
+    const ctx = audioRuntime.ctx;
+    const resume = ctx.state === 'suspended' ? ctx.resume().catch(() => {}) : Promise.resolve();
+    return resume.then(() => ctx);
+  }
+
+  function unlockAudio() {
+    ensureAudioContext().then(() => { if (audioSettings.musicEnabled) startMusicLoop(false); });
+  }
+
+  function updateAudioGains() {
+    if (!audioRuntime.ctx) return;
+    const now = audioRuntime.ctx.currentTime;
+    audioRuntime.sfxGain?.gain.setTargetAtTime(audioSettings.soundEnabled ? audioSettings.soundVolume : 0, now, .025);
+    audioRuntime.musicGain?.gain.setTargetAtTime(audioSettings.musicEnabled ? audioSettings.musicVolume : 0, now, .05);
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+  }
+
+  function renderAudioControls() {
+    if (ui.sound) {
+      ui.sound.classList.toggle('on', audioSettings.soundEnabled);
+      ui.sound.textContent = audioSettings.soundEnabled ? '🔊' : '🔇';
+      ui.sound.title = tr('sound');
+      ui.sound.setAttribute('aria-pressed', audioSettings.soundEnabled ? 'true' : 'false');
+    }
+    if (ui.music) {
+      ui.music.classList.toggle('on', audioSettings.musicEnabled);
+      ui.music.textContent = audioSettings.musicEnabled ? '♫' : '♫×';
+      ui.music.title = tr('music');
+      ui.music.setAttribute('aria-pressed', audioSettings.musicEnabled ? 'true' : 'false');
+    }
+  }
+
+  function toggleSound() {
+    audioSettings.soundEnabled = !audioSettings.soundEnabled;
+    saveAudioSettings();
+    ensureAudioContext().then(() => { updateAudioGains(); if (audioSettings.soundEnabled) playUiTone(); });
+    renderAudioControls();
+  }
+
+  function toggleMusic() {
+    audioSettings.musicEnabled = !audioSettings.musicEnabled;
+    saveAudioSettings();
+    ensureAudioContext().then(() => {
+      updateAudioGains();
+      if (audioSettings.musicEnabled) startMusicLoop(true); else stopMusicLoop();
+    });
+    renderAudioControls();
+  }
+
+  function playEffectFile(kind, volumeScale = 1) {
+    if (!audioSettings.soundEnabled) return;
+    const src = soundFiles[kind];
+    if (!src) return;
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.volume = Math.max(0, Math.min(1, effectFileVolume * volumeScale));
+    const p = audio.play();
+    if (p?.catch) p.catch(() => {});
+  }
+
+  function tone({ frequency = 440, endFrequency = null, duration = .08, gain = .10, type = 'sine', delay = 0 } = {}) {
+    const ctx = audioRuntime.ctx;
+    if (!ctx || ctx.state !== 'running' || !audioRuntime.sfxGain) return;
+    const start = ctx.currentTime + Math.max(0, delay);
+    const end = start + Math.max(.02, duration);
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(20, frequency), start);
+    if (Number.isFinite(endFrequency)) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), end);
+    amp.gain.setValueAtTime(.0001, start);
+    amp.gain.exponentialRampToValueAtTime(Math.max(.0002, gain), start + Math.min(.018, duration * .25));
+    amp.gain.exponentialRampToValueAtTime(.0001, end);
+    osc.connect(amp); amp.connect(audioRuntime.sfxGain);
+    osc.start(start); osc.stop(end + .02);
+  }
+
+  function playUiTone() {
+    if (!audioSettings.soundEnabled) return;
+    ensureAudioContext().then(() => tone({ frequency: 640, endFrequency: 760, duration: .055, gain: .055, type: 'sine' }));
+  }
+
+  function playResultTone(win) {
+    if (!audioSettings.soundEnabled) return;
+    ensureAudioContext().then(() => {
+      if (Number(win) > 0) {
+        tone({ frequency: 523, duration: .12, gain: .07, type: 'sine' });
+        tone({ frequency: 659, duration: .14, gain: .07, type: 'sine', delay: .11 });
+        tone({ frequency: 784, duration: .18, gain: .08, type: 'sine', delay: .22 });
+      } else {
+        tone({ frequency: 230, endFrequency: 175, duration: .22, gain: .055, type: 'triangle' });
+      }
+    });
+  }
+
+  function chooseRandomVoiceTag() {
+    if (!voiceTags.length) return -1;
+    if (voiceTags.length === 1) return 0;
+    let next = audioRuntime.voiceTagIndex;
+    while (next === audioRuntime.voiceTagIndex) next = Math.floor(Math.random() * voiceTags.length);
+    return next;
+  }
+
+  function clearVoiceTimer() {
+    if (audioRuntime.voiceTimer) { clearTimeout(audioRuntime.voiceTimer); audioRuntime.voiceTimer = null; }
+  }
+
+  function restoreMusicAfterVoice() {
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicEnabled ? audioSettings.musicVolume : 0;
+  }
+
+  function playVoiceTag() {
+    if (!audioSettings.musicEnabled || !voiceTags.length) return;
+    const index = chooseRandomVoiceTag();
+    if (index < 0) return;
+    if (audioRuntime.voiceElement) { audioRuntime.voiceElement.pause(); audioRuntime.voiceElement = null; }
+    const voice = new Audio(voiceTags[index]);
+    voice.preload = 'auto';
+    voice.volume = voiceSettings.volume;
+    if (audioRuntime.musicElement) audioRuntime.musicElement.volume = audioSettings.musicVolume * voiceSettings.duckFactor;
+    const onEnd = () => { restoreMusicAfterVoice(); audioRuntime.voiceElement = null; if (audioSettings.musicEnabled) scheduleVoiceTag(); };
+    voice.addEventListener('ended', onEnd, { once: true });
+    voice.addEventListener('error', onEnd, { once: true });
+    audioRuntime.voiceElement = voice;
+    audioRuntime.voiceTagIndex = index;
+    const promise = voice.play();
+    if (promise?.catch) promise.catch(onEnd);
+  }
+
+  function scheduleVoiceTag() {
+    clearVoiceTimer();
+    if (!audioSettings.musicEnabled || !voiceTags.length) return;
+    const min = Math.min(voiceSettings.minDelayMs, voiceSettings.maxDelayMs);
+    const max = Math.max(voiceSettings.minDelayMs, voiceSettings.maxDelayMs);
+    const delay = min + Math.random() * (max - min);
+    audioRuntime.voiceTimer = setTimeout(() => { audioRuntime.voiceTimer = null; playVoiceTag(); }, delay);
+  }
+
+  function chooseRandomMusicTrack() {
+    if (!musicTracks.length) return -1;
+    if (musicTracks.length === 1) return 0;
+    let next = audioRuntime.musicTrackIndex;
+    while (next === audioRuntime.musicTrackIndex) next = Math.floor(Math.random() * musicTracks.length);
+    return next;
+  }
+
+  function playMusicTrack(index) {
+    if (!audioSettings.musicEnabled || !musicTracks.length) return;
+    const safeIndex = Number.isInteger(index) && index >= 0 && index < musicTracks.length ? index : chooseRandomMusicTrack();
+    if (safeIndex < 0) return;
+    if (audioRuntime.musicElement) { audioRuntime.musicElement.pause(); audioRuntime.musicElement.removeAttribute('src'); audioRuntime.musicElement.load(); }
+    const audio = new Audio(musicTracks[safeIndex]);
+    audio.preload = 'auto';
+    audio.volume = audioSettings.musicVolume;
+    audio.addEventListener('ended', () => { if (audioSettings.musicEnabled) playMusicTrack(chooseRandomMusicTrack()); }, { once: true });
+    audio.addEventListener('error', () => {
+      if (!audioSettings.musicEnabled) return;
+      const next = chooseRandomMusicTrack();
+      if (next >= 0 && next !== safeIndex) setTimeout(() => playMusicTrack(next), 350);
+    }, { once: true });
+    audioRuntime.musicElement = audio;
+    audioRuntime.musicTrackIndex = safeIndex;
+    const promise = audio.play();
+    if (promise?.catch) promise.catch(() => {});
+  }
+
+  function startMusicLoop(forceNew = false) {
+    if (!audioSettings.musicEnabled || !musicTracks.length) return;
+    if (!forceNew && audioRuntime.musicElement && !audioRuntime.musicElement.paused) return;
+    playMusicTrack(chooseRandomMusicTrack());
+    scheduleVoiceTag();
+  }
+
+  function stopMusicLoop() {
+    clearVoiceTimer();
+    if (audioRuntime.voiceElement) { audioRuntime.voiceElement.pause(); audioRuntime.voiceElement.currentTime = 0; audioRuntime.voiceElement = null; }
+    if (audioRuntime.musicElement) { audioRuntime.musicElement.pause(); audioRuntime.musicElement.currentTime = 0; audioRuntime.musicElement = null; }
+  }
+
+  function syncAudioWithState() {
+    if (audioRuntime.lastPhase === gameState.phase) return;
+    const previous = audioRuntime.lastPhase;
+    audioRuntime.lastPhase = gameState.phase;
+    if (gameState.phase === 'settled' && previous === 'throwing') playResultTone(gameState.ticket?.win || 0);
+  }
+
+  // --- Local recent-ticket history (convenience cache only) -----------
+  function localTicketHistoryLimit() {
+    const raw = Number(LMS_CFG.localTicketHistoryLimit ?? 5);
+    return Math.max(1, Math.min(50, Number.isFinite(raw) ? Math.floor(raw) : 5));
+  }
+
+  function localTicketHistoryKey(mode = gameState.mode) {
+    const normalizedMode = String(mode).toLowerCase() === 'demo' ? 'demo' : 'real';
+    return `x2-chuko-ticket-history:${LMS_CFG.gameId || 'CHUKO'}:${normalizedMode}`;
+  }
+
+  function readLocalTicketHistory(mode = gameState.mode) {
+    try {
+      const raw = localStorage.getItem(localTicketHistoryKey(mode));
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter(item => item && item.ticketId != null && item.ticketId !== '' && Number.isFinite(Number(item.win)))
+        .slice(0, localTicketHistoryLimit());
+    } catch (_) { return []; }
+  }
+
+  function saveCompletedTicketLocally(completedTicket, mode = gameState.mode) {
+    if (!completedTicket || completedTicket.ticketId == null || completedTicket.ticketId === '') return;
+    const item = { ticketId: String(completedTicket.ticketId), win: Number(completedTicket.win || 0) };
+    const current = readLocalTicketHistory(mode).filter(row => String(row.ticketId) !== item.ticketId);
+    current.unshift(item);
+    try { localStorage.setItem(localTicketHistoryKey(mode), JSON.stringify(current.slice(0, localTicketHistoryLimit()))); } catch (_) {}
+  }
+
+  function renderLocalTicketHistory() {
+    if (!ui.ticketsList) return;
+    const rows = readLocalTicketHistory(gameState.mode);
+    ui.ticketsList.innerHTML = '';
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'tickets-empty';
+      empty.textContent = tr('noRecentTickets');
+      ui.ticketsList.appendChild(empty);
+      return;
+    }
+    rows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'ticket-history-row';
+      const id = document.createElement('div');
+      id.className = 'ticket-history-id';
+      id.textContent = `№ ${item.ticketId}`;
+      id.title = `${tr('ticket')} № ${item.ticketId}`;
+      const win = document.createElement('div');
+      win.className = 'ticket-history-win';
+      win.textContent = formatMoney(item.win);
+      row.append(id, win);
+      ui.ticketsList.appendChild(row);
+    });
+  }
+
+  function renderTicketNumber() {
+    if (!ui.ticketNumber) return;
+    let value = '—';
+    if (gameState.phase === 'requesting') value = '…';
+    else if (gameState.ticket?.ticketId != null && gameState.ticket.ticketId !== '') value = String(gameState.ticket.ticketId);
+    ui.ticketNumber.textContent = `№ ${value}`;
+    ui.ticketNumber.title = value === '—' || value === '…' ? tr('ticket') : `${tr('ticket')} № ${value}`;
+  }
+
+  // --- Denomination strip (track + arrows) -----------------------------
+  function updateDenominationArrows() {
+    if (!ui.denomViewport || !ui.denomPrev || !ui.denomNext) return;
+    const maxScroll = Math.max(0, ui.denomViewport.scrollWidth - ui.denomViewport.clientWidth);
+    const overflowing = maxScroll > 2;
+    const left = ui.denomViewport.scrollLeft;
+    ui.denomPrev.classList.toggle('visible', overflowing && left > 2);
+    ui.denomNext.classList.toggle('visible', overflowing && left < maxScroll - 2);
+    ui.denomPrev.disabled = !overflowing || left <= 2;
+    ui.denomNext.disabled = !overflowing || left >= maxScroll - 2;
+  }
+
+  function centerActiveDenomination() {
+    if (!ui.denomViewport || !ui.denomTrack) return;
+    const active = ui.denomTrack.querySelector('.denom-option.active');
+    if (!active) return;
+    const target = active.offsetLeft - (ui.denomViewport.clientWidth - active.offsetWidth) / 2;
+    const maxScroll = Math.max(0, ui.denomViewport.scrollWidth - ui.denomViewport.clientWidth);
+    ui.denomViewport.scrollLeft = Math.max(0, Math.min(maxScroll, target));
+    updateDenominationArrows();
+  }
+
+  function renderDenominationButtons({ centerActive = false } = {}) {
+    if (!ui.denomTrack) return;
+    ui.denomTrack.innerHTML = '';
+    const enabled = ['idle', 'settled'].includes(gameState.phase) && !gameState.busy && !autoPlay.active;
+    const values = [...new Set((gameState.denominations || []).map(Number).filter(v => Number.isFinite(v) && v > 0))];
     values.forEach(value => {
       const b = document.createElement('button');
-      b.className = 'denom';
       b.type = 'button';
-      b.dataset.denom = String(value);
-      b.textContent = String(value);
+      b.className = 'denom-option' + (Number(value) === Number(gameState.denomination) ? ' active' : '');
+      b.textContent = formatMoney(value);
+      b.disabled = !enabled;
       b.addEventListener('click', () => {
-        if (!['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+        if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;
         gameState.denomination = value;
         gameState.ticket = null;
         gameState.ticketReady = false;
+        autoPlay.selected = null;
         hideGameResult();
-        updateGameHud();
-        LMS?.emit?.('X2_GAME_DENOMINATION_CHANGED', {gameId:LMS_CFG.gameId || 'CHUKO', denomination:value, currency:gameState.currency, mode:gameState.mode});
+        renderState();
+        LMS?.emit?.('X2_GAME_DENOMINATION_CHANGED', { gameId: LMS_CFG.gameId || 'CHUKO', denomination: value, currency: gameState.currency, mode: gameState.mode });
       });
-      bar.insertBefore(b, unit);
+      ui.denomTrack.appendChild(b);
+    });
+    requestAnimationFrame(() => { if (centerActive) centerActiveDenomination(); else updateDenominationArrows(); });
+  }
+
+  function renderModeSwitch() {
+    if (!ui.modeSwitch) return;
+    ui.modeSwitch.classList.toggle('hidden', !gameState.demoAllowed);
+    ui.modeSwitch.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === gameState.mode);
+      b.textContent = b.dataset.mode === 'demo' ? tr('demo') : tr('real');
+      b.disabled = !['idle', 'settled'].includes(gameState.phase) || autoPlay.active;
     });
   }
 
-  function renderGameControls() {
-    const phase = gameState.phase;
-    const canConfigure = ['idle','settled'].includes(phase) && !gameState.busy;
-    document.querySelectorAll('[data-denom]').forEach(btn => btn.disabled = !canConfigure);
-    if (ui.demoModeBtn) ui.demoModeBtn.disabled = !canConfigure || !gameState.demoAllowed;
-    if (ui.realModeBtn) ui.realModeBtn.disabled = !canConfigure;
-    if (ui.throwBtn) {
-      ui.throwBtn.disabled = phase !== 'ready' || !gameState.ticketReady;
-      ui.throwBtn.textContent = phase === 'throwing' ? 'САКА В ПОЛЁТЕ…' : 'БРОСИТЬ САКА';
-    }
-    if (ui.resetBtn) {
-      ui.resetBtn.disabled = !canConfigure;
-      ui.resetBtn.textContent = gameState.busy ? 'ЗАГРУЗКА…' : 'НОВАЯ ИГРА';
+  function renderScore() {
+    const physical = computePhysicalResult();
+    if (ui.knocked) ui.knocked.textContent = String(physical.out || 0);
+    const scoreWin = (gameState.ticket && gameState.phase === 'settled') ? Number(gameState.ticket.win || 0) : 0;
+    if (ui.scoreWin) ui.scoreWin.textContent = formatMoney(scoreWin);
+    if (ui.khan) {
+      if (physical.khanOut) ui.khan.textContent = '×5';
+      else if (gameState.phase === 'settled') ui.khan.textContent = tr('stood');
+      else ui.khan.textContent = '—';
     }
   }
 
-  function updateGameHud() {
-    if (ui.ticketNo) ui.ticketNo.textContent = currentTicketLabel();
-    if (ui.balanceValue) ui.balanceValue.textContent = formatMoney(gameState.balance);
-    document.querySelectorAll('[data-denom]').forEach(btn => {
-      btn.classList.toggle('active', Number(btn.dataset.denom) === gameState.denomination);
+  function renderPayoutGrid() {
+    if (!ui.payoutGrid || !ScenarioCfg) return;
+    ui.payoutGrid.innerHTML = '';
+    ScenarioCfg.ids.forEach(id => {
+      const item = ScenarioCfg.scenarios[id];
+      if (!item) return;
+      const row = document.createElement('div');
+      row.className = 'payout-item' + (item.khan ? ' payout-khan' : '');
+      const label = document.createElement('span');
+      label.textContent = item.khan ? `${item.regular} чүкө + ХАН` : `${item.regular} чүкө`;
+      const value = document.createElement('strong');
+      value.textContent = `×${item.demoMultiplier}`;
+      row.append(label, value);
+      ui.payoutGrid.appendChild(row);
     });
-    ui.demoModeBtn?.classList.toggle('active', gameState.mode === 'demo');
-    ui.realModeBtn?.classList.toggle('active', gameState.mode === 'real');
-    renderGameControls();
+  }
+
+  // --- Autoplay (ported from CHUKO v20.61) -----------------------------
+  function configuredAutoPlayCounts() {
+    return [...new Set((Array.isArray(LMS_CFG.autoPlayCounts) ? LMS_CFG.autoPlayCounts : [5, 10, 20, 50])
+      .map(Number).filter(n => Number.isInteger(n) && n > 0))];
+  }
+
+  function clearAutoTimers() {
+    if (autoPlay.nextTimer) { clearTimeout(autoPlay.nextTimer); autoPlay.nextTimer = null; }
+    if (autoPlay.throwTimer) { clearTimeout(autoPlay.throwTimer); autoPlay.throwTimer = null; }
+  }
+
+  function closeAutoMenu() {
+    ui.autoMenu?.classList.remove('open');
+    ui.autoMenu?.setAttribute('aria-hidden', 'true');
+  }
+
+  function renderAutoPlayMenu() {
+    if (!ui.autoCounts) return;
+    ui.autoCounts.innerHTML = '';
+    configuredAutoPlayCounts().forEach(count => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'autoplay-count';
+      b.textContent = String(count);
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        autoPlay.selected = count;
+        closeAutoMenu();
+        renderAutoPlayButton();
+      });
+      ui.autoCounts.appendChild(b);
+    });
+    if (ui.autoMenuTitle) ui.autoMenuTitle.textContent = tr('autoGames');
+  }
+
+  function renderAutoPlayButton() {
+    if (!ui.autoPlay) return;
+    const available = ['idle', 'settled'].includes(gameState.phase) && !gameState.busy;
+    ui.autoPlay.classList.toggle('active', autoPlay.active);
+    if (autoPlay.active) {
+      const current = Math.min(autoPlay.total, autoPlay.completed + 1);
+      ui.autoPlay.textContent = autoPlay.stopRequested ? tr('autoStopping') : `${tr('autoStop')} ${current}/${autoPlay.total}`;
+      ui.autoPlay.disabled = autoPlay.stopRequested;
+      return;
+    }
+    if (Number.isInteger(autoPlay.selected) && autoPlay.selected > 0) {
+      ui.autoPlay.textContent = `${tr('autoStart')} ${autoPlay.selected}`;
+      ui.autoPlay.disabled = !available;
+      return;
+    }
+    ui.autoPlay.textContent = tr('autoPlay');
+    ui.autoPlay.disabled = !available;
+  }
+
+  function finishAutoPlay() {
+    clearAutoTimers();
+    autoPlay.active = false;
+    autoPlay.stopRequested = false;
+    autoPlay.selected = null;
+    autoPlay.total = 0;
+    autoPlay.completed = 0;
+    autoPlay.remaining = 0;
+    autoPlay.fixedStake = null;
+    closeAutoMenu();
+    renderState();
+  }
+
+  function requestAutoStop() {
+    if (!autoPlay.active) return;
+    autoPlay.stopRequested = true;
+    closeAutoMenu();
+    if (['idle', 'settled'].includes(gameState.phase)) { finishAutoPlay(); return; }
+    renderAutoPlayButton();
+  }
+
+  function scheduleAutoThrow() {
+    if (!autoPlay.active || gameState.phase !== 'ready') return;
+    if (autoPlay.throwTimer) clearTimeout(autoPlay.throwTimer);
+    const delay = Math.max(0, Number(LMS_CFG.autoPlayThrowDelayMs ?? 450));
+    autoPlay.throwTimer = setTimeout(() => {
+      autoPlay.throwTimer = null;
+      if (autoPlay.active && gameState.phase === 'ready') throwSaka();
+    }, delay);
+  }
+
+  function celebrationHoldMs() {
+    const zeroHold = Math.max(0, Number(LMS_CFG.autoPlayNextRoundDelayMs ?? 900));
+    if (!gameState.ticket || Number(gameState.ticket.win || 0) <= 0) return zeroHold;
+    // Confetti lifetime (see launchConfetti()) plus its max stagger delay.
+    const khan = !!computePhysicalResult().khanOut;
+    const confettiDelay = khan ? 480 : 280;
+    const confettiMs = 2600 + confettiDelay;
+    return confettiMs + 180;
+  }
+
+  function scheduleNextAutoRound() {
+    if (!autoPlay.active || autoPlay.stopRequested || autoPlay.remaining <= 0) { finishAutoPlay(); return; }
+    if (autoPlay.nextTimer) clearTimeout(autoPlay.nextTimer);
+    const delay = celebrationHoldMs();
+    autoPlay.nextTimer = setTimeout(() => {
+      autoPlay.nextTimer = null;
+      if (!autoPlay.active || autoPlay.stopRequested) { finishAutoPlay(); return; }
+      if (['idle', 'settled'].includes(gameState.phase)) requestNewGame();
+    }, delay);
+  }
+
+  function handleAutoRoundComplete() {
+    if (!autoPlay.active) return;
+    autoPlay.completed += 1;
+    autoPlay.remaining = Math.max(0, autoPlay.total - autoPlay.completed);
+    if (autoPlay.stopRequested || autoPlay.remaining <= 0) { finishAutoPlay(); return; }
+    renderAutoPlayButton();
+    scheduleNextAutoRound();
+  }
+
+  function startAutoPlay(count) {
+    const total = Number(count);
+    if (autoPlay.active || !['idle', 'settled'].includes(gameState.phase) || !configuredAutoPlayCounts().includes(total)) return;
+    clearAutoTimers();
+    closeAutoMenu();
+    autoPlay.active = true;
+    autoPlay.stopRequested = false;
+    autoPlay.selected = null;
+    autoPlay.total = total;
+    autoPlay.completed = 0;
+    autoPlay.remaining = total;
+    autoPlay.fixedStake = Number(gameState.denomination);
+    renderState();
+    autoPlay.nextTimer = setTimeout(() => {
+      autoPlay.nextTimer = null;
+      if (autoPlay.active && ['idle', 'settled'].includes(gameState.phase)) requestNewGame();
+    }, 120);
+  }
+
+  // --- Celebration: DOM confetti (no PixiJS in the 3D build) -----------
+  function isMobileEffectsDevice() {
+    const ua = navigator.userAgent || '';
+    const isiOS = /iPhone|iPad|iPod/i.test(ua);
+    const narrow = Math.min(window.innerWidth || 9999, window.innerHeight || 9999) < 700;
+    return isiOS || narrow;
+  }
+
+  function clearCelebration() {
+    if (ui.celebration) ui.celebration.innerHTML = '';
+  }
+
+  function launchConfetti({ khan = false } = {}) {
+    if (!ui.celebration) return;
+    const requested = khan ? 54 : 22;
+    const mobile = isMobileEffectsDevice();
+    const count = mobile ? Math.min(34, Math.max(8, Math.round(requested * 0.6))) : requested;
+    const palette = khan
+      ? ['#ffd45d', '#dbe63c', '#ffffff', '#ff9f3f', '#5fb4ff', '#f26cff']
+      : ['#dbe63c', '#ffffff', '#5fb4ff', '#ffd45d'];
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < count; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      const size = 4 + Math.random() * 6;
+      const height = size * (1.25 + Math.random() * 0.7);
+      const left = Math.random() * 100;
+      const dx = (Math.random() - 0.5) * 150;
+      const dur = 1600 + Math.random() * 1000;
+      const delay = Math.random() * (khan ? 480 : 280);
+      const rot = 480 + Math.random() * 480;
+      const flip = 360 + Math.random() * 360;
+      piece.style.background = palette[i % palette.length];
+      piece.style.setProperty('--w', `${size}px`);
+      piece.style.setProperty('--h', `${height}px`);
+      piece.style.setProperty('--left', `${left}%`);
+      piece.style.setProperty('--dx', `${dx}px`);
+      piece.style.setProperty('--dur', `${dur}ms`);
+      piece.style.setProperty('--delay', `${delay}ms`);
+      piece.style.setProperty('--rot', `${rot}deg`);
+      piece.style.setProperty('--flip', `${flip}deg`);
+      frag.appendChild(piece);
+    }
+    ui.celebration.appendChild(frag);
+  }
+
+  function launchCelebration({ khan = false } = {}) {
+    clearCelebration();
+    launchConfetti({ khan });
+  }
+
+  function showResultToast() {
+    if (!gameState.ticket || !ui.toast) return;
+    const win = Number(gameState.ticket.win || 0);
+    const khanOut = !!computePhysicalResult().khanOut;
+    ui.toast.classList.remove('zero', 'khan-win', 'show');
+    ui.toast.textContent = formatMoney(win);
+    if (win <= 0) ui.toast.classList.add('zero');
+    else if (khanOut) { ui.toast.classList.add('khan-win'); launchCelebration({ khan: true }); }
+    else launchCelebration({ khan: false });
+    void ui.toast.offsetWidth;
+    ui.toast.classList.add('show');
+    if (win > 0) playEffectFile('win', 0.78);
   }
 
   function hideGameResult() {
     gameState.resultShown = false;
-    if (ui.resultCard) {
-      ui.resultCard.hidden = true;
-      ui.resultCard.classList.remove('win');
-    }
+    if (ui.toast) ui.toast.classList.remove('show', 'zero', 'khan-win');
+    clearCelebration();
+  }
+
+  function showStatus(text = '') {
+    if (ui.status) ui.status.textContent = text;
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
@@ -1906,21 +2522,16 @@
       else gameState.realBalance = gameState.balance;
     }
 
-    if (ui.resultMain) ui.resultMain.textContent = plan.khan ? `Выбито: ${plan.regular} + ХАН` : `Выбито: ${plan.regular}`;
-    if (ui.resultSub) ui.resultSub.textContent = `Выигрыш: ${formatMoney(gameState.ticket.win || 0)} · ${plan.key}`;
-    if (ui.resultCard) {
-      ui.resultCard.hidden = false;
-      ui.resultCard.classList.toggle('win', Number(gameState.ticket.win || 0) > 0);
-    }
-
     if (physical.out !== plan.regular || physical.khanOut !== plan.khan) {
-      console.warn('[CHUKO 0.12.3] scenario visual mismatch after fallback', {physical, plan, ticket:gameState.ticket});
+      console.warn('[CHUKO 0.13.0] scenario visual mismatch after fallback', {physical, plan, ticket:gameState.ticket});
     }
 
     gameState.phase = 'settled';
     gameState.ticketReady = false;
     gameState.busy = false;
-    updateGameHud();
+    showResultToast();
+    saveCompletedTicketLocally(gameState.ticket, gameState.mode);
+    renderState();
     LMS?.emit?.('X2_GAME_ROUND_COMPLETE', {
       gameId:LMS_CFG.gameId || 'CHUKO',
       ticketId:gameState.ticket.ticketId,
@@ -1934,9 +2545,12 @@
       language:gameState.language,
       mode:gameState.mode
     });
+    handleAutoRoundComplete();
   }
 
   async function refreshBalance() {
+    gameState.phase = 'loading';
+    renderState();
     try {
       if (gameState.mode === 'demo') {
         gameState.balance = Number(gameState.demoBalance);
@@ -1947,26 +2561,32 @@
         if (data.currency) gameState.currency = String(data.currency).toUpperCase();
         if (data.currencyDisplay) gameState.currencyDisplay = String(data.currencyDisplay);
       }
+      gameState.phase = 'idle';
+      renderDenominationButtons({centerActive:true});
+      renderState();
       LMS?.emit?.('X2_GAME_BALANCE_LOADED', {gameId:LMS_CFG.gameId || 'CHUKO', balance:gameState.balance, currency:gameState.currency, currencyDisplay:gameState.currencyDisplay, mode:gameState.mode});
     } catch (err) {
       console.error(err);
       gameState.phase = 'error';
-      ui.hint.textContent = 'Не удалось загрузить баланс';
+      showStatus(tr('balanceError'));
+      renderState();
       LMS?.emit?.('X2_GAME_ERROR',{stage:'balance',code:err.code||'BALANCE_ERROR',message:err.message||String(err)});
     }
-    updateGameHud();
   }
 
   async function requestNewGame() {
     if (!['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+    if (autoPlay.active && Number.isFinite(autoPlay.fixedStake)) {
+      gameState.denomination = Number(autoPlay.fixedStake);
+    }
     hideGameResult();
+    showStatus('');
     gameState.busy = true;
     gameState.phase = 'requesting';
     gameState.ticketReady = false;
     gameState.ticket = null;
     clearScenarioRuntime();
-    ui.hint.textContent = 'Получаем билет…';
-    updateGameHud();
+    renderState();
     try {
       const request = {
         gameId:LMS_CFG.gameId || 'CHUKO',
@@ -1989,12 +2609,14 @@
       gameState.ticketReady = true;
       gameState.busy = false;
       resetRound();
-      updateGameHud();
+      renderDenominationButtons();
+      renderState();
       LMS?.emit?.('X2_GAME_TICKET_READY', {
         gameId:LMS_CFG.gameId || 'CHUKO', ticketId:data.ticketId, scenario:data.scenario, scenarioKey:data.scenarioKey,
         denomination:gameState.denomination, currency:gameState.currency, currencyDisplay:gameState.currencyDisplay,
         language:gameState.language, mode:gameState.mode
       });
+      if (autoPlay.active) scheduleAutoThrow();
     } catch (err) {
       console.error(err);
       gameState.phase = 'idle';
@@ -2002,35 +2624,157 @@
       gameState.ticketReady = false;
       gameState.ticket = null;
       const code = err.code || 'GAME_START_ERROR';
-      ui.hint.textContent = code === 'INSUFFICIENT_FUNDS' ? 'Недостаточно средств' : 'Не удалось получить билет';
-      updateGameHud();
+      showStatus(code === 'INSUFFICIENT_FUNDS' ? tr('insufficient') : code === 'SESSION_EXPIRED' ? tr('sessionEnded') : tr('startError'));
+      if (autoPlay.active) { clearAutoTimers(); finishAutoPlay(); }
+      renderState();
       LMS?.emit?.('X2_GAME_ERROR',{stage:'newGame',code,message:err.message||String(err)});
     }
   }
 
   async function setGameMode(mode) {
-    if (!['idle','settled'].includes(gameState.phase) || gameState.busy) return;
+    if (!gameState.demoAllowed || autoPlay.active || !['idle','settled'].includes(gameState.phase) || gameState.busy) return;
     const next = mode === 'real' ? 'real' : 'demo';
-    if (next === 'demo' && !gameState.demoAllowed) return;
     if (next === gameState.mode) return;
     gameState.mode = next;
     gameState.ticket = null;
     gameState.ticketReady = false;
     gameState.pendingBalance = null;
+    autoPlay.selected = null;
     clearScenarioRuntime();
     hideGameResult();
     resetRound();
     LMS?.emit?.('X2_GAME_MODE_CHANGED',{gameId:LMS_CFG.gameId || 'CHUKO',mode:gameState.mode,currency:gameState.currency,language:gameState.language,denomination:gameState.denomination});
     await refreshBalance();
     gameState.phase = 'idle';
-    updateGameHud();
+    renderState();
+  }
+
+  // Single contextual action button: idle/settled -> new ticket,
+  // ready -> throw, error -> retry. Replaces the old separate
+  // "БРОСИТЬ САКА" / "НОВАЯ ИГРА" button pair.
+  function renderState() {
+    if (!ui.action) return;
+    let label = tr('loading');
+    let disabled = false;
+    switch (gameState.phase) {
+      case 'idle':
+      case 'settled': label = tr('newGame'); break;
+      case 'requesting': label = tr('loading'); disabled = true; break;
+      case 'ready': label = tr('makeThrow'); break;
+      case 'throwing': label = tr('throwing'); disabled = true; break;
+      case 'loading': label = tr('loading'); disabled = true; break;
+      case 'error': label = tr('retry'); break;
+      default: disabled = true;
+    }
+    ui.action.textContent = label;
+    ui.action.disabled = disabled || autoPlay.active || gameState.busy;
+    if (ui.balance) ui.balance.textContent = `${formatMoney(gameState.balance)} ${gameState.currencyDisplay || gameState.currency}`;
+    renderDenominationButtons();
+    renderModeSwitch();
+    renderAutoPlayButton();
+    renderAudioControls();
+    renderTicketNumber();
+    renderScore();
+    syncAudioWithState();
   }
 
   function bindGameUi() {
-    ui.demoModeBtn?.addEventListener('click',()=>setGameMode('demo'));
-    ui.realModeBtn?.addEventListener('click',()=>setGameMode('real'));
+    // Browser audio starts only after a user gesture.
+    document.addEventListener('pointerdown', unlockAudio, { once:true, capture:true });
+
+    ui.sound?.addEventListener('click', e => { e.stopPropagation(); toggleSound(); });
+    ui.music?.addEventListener('click', e => { e.stopPropagation(); toggleMusic(); });
+
+    ui.action?.addEventListener('click', () => {
+      if (autoPlay.active) return;
+      if (gameState.phase === 'ready') throwSaka();
+      else if (gameState.phase === 'idle' || gameState.phase === 'settled') requestNewGame();
+      else if (gameState.phase === 'error') refreshBalance();
+    });
+
+    ui.autoPlay?.addEventListener('click', e => {
+      e.stopPropagation();
+      if (autoPlay.active) { requestAutoStop(); return; }
+      if (!['idle','settled'].includes(gameState.phase)) return;
+      if (Number.isInteger(autoPlay.selected) && autoPlay.selected > 0) { startAutoPlay(autoPlay.selected); return; }
+      renderAutoPlayMenu();
+      const open = !ui.autoMenu?.classList.contains('open');
+      ui.autoMenu?.classList.toggle('open', open);
+      ui.autoMenu?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    });
+    ui.autoMenu?.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('click', () => closeAutoMenu());
+
+    ui.deposit?.addEventListener('click', () => LMS?.emit?.('X2_GAME_DEPOSIT_REQUEST', {
+      gameId:LMS_CFG.gameId || 'CHUKO', mode:gameState.mode, currency:gameState.currency,
+      denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
+    }));
+
+    const scrollDenominations = direction => {
+      if (!ui.denomViewport) return;
+      const option = ui.denomTrack?.querySelector('.denom-option');
+      const step = (option?.offsetWidth || 54) + 6;
+      ui.denomViewport.scrollBy({ left: direction * step * 2, behavior: 'smooth' });
+      setTimeout(updateDenominationArrows, 220);
+    };
+    ui.denomPrev?.addEventListener('click', () => scrollDenominations(-1));
+    ui.denomNext?.addEventListener('click', () => scrollDenominations(1));
+    ui.denomViewport?.addEventListener('scroll', updateDenominationArrows, { passive:true });
+    window.addEventListener('resize', () => requestAnimationFrame(updateDenominationArrows));
+
+    ui.modeSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => setGameMode(b.dataset.mode)));
+
+    const closeInfoMenu = () => {
+      ui.infoMenu?.classList.remove('open');
+      ui.infoMenu?.setAttribute('aria-hidden','true');
+      ui.info?.classList.remove('active');
+    };
+    const openHelp = () => {
+      closeInfoMenu();
+      ui.helpModal?.classList.add('open');
+      ui.helpModal?.setAttribute('aria-hidden','false');
+      LMS?.emit?.('X2_GAME_HELP_REQUEST', {gameId:LMS_CFG.gameId || 'CHUKO', language:gameState.language, mode:gameState.mode});
+    };
+    const closeHelp = () => { ui.helpModal?.classList.remove('open'); ui.helpModal?.setAttribute('aria-hidden','true'); };
+    const openPayout = () => { closeInfoMenu(); renderPayoutGrid(); ui.payoutModal?.classList.add('open'); ui.payoutModal?.setAttribute('aria-hidden','false'); };
+    const closePayout = () => { ui.payoutModal?.classList.remove('open'); ui.payoutModal?.setAttribute('aria-hidden','true'); };
+    const closeTickets = () => { ui.ticketsModal?.classList.remove('open'); ui.ticketsModal?.setAttribute('aria-hidden','true'); };
+
+    ui.info?.addEventListener('click', e => {
+      e.stopPropagation();
+      playUiTone();
+      closeAutoMenu();
+      const open = !ui.infoMenu?.classList.contains('open');
+      ui.infoMenu?.classList.toggle('open', open);
+      ui.infoMenu?.setAttribute('aria-hidden', open ? 'false' : 'true');
+      ui.info?.classList.toggle('active', open);
+    });
+    ui.infoMenu?.addEventListener('click', e => e.stopPropagation());
+    ui.infoPayout?.addEventListener('click', openPayout);
+    ui.infoHow?.addEventListener('click', openHelp);
+    ui.infoTickets?.addEventListener('click', () => { closeInfoMenu(); renderLocalTicketHistory(); ui.ticketsModal?.classList.add('open'); ui.ticketsModal?.setAttribute('aria-hidden','false'); });
+
+    ui.helpClose?.addEventListener('click', closeHelp);
+    ui.helpOk?.addEventListener('click', closeHelp);
+    ui.helpModal?.addEventListener('click', e => { if (e.target === ui.helpModal) closeHelp(); });
+
+    ui.payoutClose?.addEventListener('click', closePayout);
+    ui.payoutOk?.addEventListener('click', closePayout);
+    ui.payoutModal?.addEventListener('click', e => { if (e.target === ui.payoutModal) closePayout(); });
+
+    ui.ticketsClose?.addEventListener('click', closeTickets);
+    ui.ticketsOk?.addEventListener('click', closeTickets);
+    ui.ticketsModal?.addEventListener('click', e => { if (e.target === ui.ticketsModal) closeTickets(); });
+
+    document.addEventListener('click', closeInfoMenu);
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { closeInfoMenu(); closeHelp(); closePayout(); closeTickets(); }
+    });
+
     renderDenominationButtons();
-    updateGameHud();
+    renderAutoPlayMenu();
+    applyTranslations();
+    renderState();
   }
 
   async function initializeGameIntegration() {
@@ -2043,16 +2787,16 @@
     gameState.denomination = gameState.denominations.includes(preferred) ? preferred : gameState.denominations[0];
     gameState.currency = String(settings.currency || 'KGS').toUpperCase();
     gameState.currencyDisplay = String(settings.currencyDisplay || settings.currency || 'сом');
-    gameState.language = String(settings.language || 'RU').toUpperCase();
+    gameState.language = String(settings.language || 'RU').toUpperCase() === 'KG' ? 'KG' : 'RU';
     gameState.mode = String(settings.mode || 'demo').toLowerCase() === 'real' ? 'real' : 'demo';
     gameState.demoAllowed = settings.demoAllowed !== false;
     gameState.demoBalance = Number(settings.demoBalance ?? LMS_CFG.demoBalance ?? 10000);
     gameState.phase = 'idle';
-    renderDenominationButtons();
+    applyTranslations();
     await refreshBalance();
     resetRound();
-    updateGameHud();
-    ui.hint.textContent = 'Выберите номинал и нажмите «Новая игра»';
+    renderState();
+    showStatus('');
   }
 
   function resetRound() {
@@ -2071,8 +2815,6 @@
     roundIndex++;
     roundSeed = roundIndex * 7919 + 17;
     throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
-    ui.throwBtn.disabled = false;
-    ui.throwBtn.textContent = 'БРОСИТЬ САКА';
     hideGameResult();
     ui.hint.textContent = gameState.ticketReady && gameState.ticket
       ? `Билет #${gameState.ticket.ticketId} · ${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА`
@@ -2602,9 +3344,8 @@
     if (thrown || !saka || !sakaAggregate || gameState.phase !== 'ready' || !gameState.ticketReady) return;
     thrown = true;
     gameState.phase = 'throwing';
-    updateGameHud();
-    ui.throwBtn.disabled = true;
-    ui.throwBtn.textContent = 'САКА В ПОЛЁТЕ…';
+    renderState();
+    playEffectFile('throw', 0.82);
     if (ui.aimPower) ui.aimPower.hidden = true;
     // Keep the selected ring visible during the flight so the exact contact can
     // be checked visually. Only hide the dotted guide.
@@ -2744,6 +3485,7 @@
     throwState.impactBoosted = true;
     triggerImpactFx(tp, throwState.power || 0.6);
     if (aimTarget) aimTarget.setEnabled(false);
+    playEffectFile(scenarioRuntime.khanTarget ? 'khanImpact' : 'impact', 1.0);
     // No post-impact steering and no late correction. The whole scatter uses
     // the precomputed landing plan prepared before the throw.
     startScenarioScatter();
@@ -3208,10 +3950,6 @@
     });
 
     window.addEventListener('resize', () => engine.resize(), { passive: true });
-    ui.throwBtn.addEventListener('click', () => {
-      if (gameState.phase === 'ready' && gameState.ticketReady && !thrown) throwSaka();
-    });
-    ui.resetBtn.addEventListener('click', requestNewGame);
     bindAimControls();
 
     updatePerf();
