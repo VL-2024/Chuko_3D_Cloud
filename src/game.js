@@ -116,6 +116,26 @@
   let sakaClampPending = false;
   let roundPhysicsFrozen = false;
 
+  // --- TEMPORARY diagnostics for the "SAKA doesn't touch the pile" issue ---
+  // Safe to flip to false (or delete this block + its call sites) once the
+  // real cause is confirmed and the fix is verified in a real browser.
+  const DEBUG_CONTACT = true;
+  let debugLastLogAt = 0;
+  let debugRoundStartAt = 0;
+  function debugLog(label, data) {
+    if (!DEBUG_CONTACT) return;
+    const t = debugRoundStartAt ? (performance.now() - debugRoundStartAt).toFixed(0) + 'ms' : '?';
+    console.log(`[CHUKO DEBUG t=${t}] ${label}`, data);
+  }
+  function debugLogThrottled(label, data, minGapMs = 120) {
+    if (!DEBUG_CONTACT) return;
+    const now = performance.now();
+    if (now - debugLastLogAt < minGapMs) return;
+    debugLastLogAt = now;
+    debugLog(label, data);
+  }
+  // --- end temporary diagnostics ---
+
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
@@ -1263,6 +1283,18 @@
     bodies.push({ mesh: sakaMesh, aggregate, role: 'saka' });
     roundPool.saka = { mesh: sakaMesh, aggregate, visual: sakaVisual };
 
+    // Real collision detection for the deterministic scatter trigger - see
+    // onSakaCollision(). Enabled once here since this body is pooled/reused
+    // for every round.
+    try {
+      aggregate.body.setCollisionCallbackEnabled(true);
+      aggregate.body.getCollisionObservable().add(onSakaCollision);
+      debugLog('SAKA collision callback registered OK', {});
+    } catch (err) {
+      console.warn('[CHUKO 0.12.3] SAKA collision callback unavailable, relying on the height/radius fallback only', err);
+      debugLog('SAKA collision callback FAILED to register', { error: String(err) });
+    }
+
     roundPool.initialized = true;
     applyAllVisualTuning();
     syncAllGlbVisuals();
@@ -1685,7 +1717,16 @@
   }
 
   function startScenarioScatter() {
-    if (!scenarioRuntime.active || !scenarioRuntime.flightPlan.length || scenarioRuntime.scatterActive || scenarioRuntime.scatterComplete) return;
+    if (!scenarioRuntime.active || !scenarioRuntime.flightPlan.length || scenarioRuntime.scatterActive || scenarioRuntime.scatterComplete) {
+      debugLog('startScenarioScatter EARLY-RETURN (this would explain a stuck SAKA!)', {
+        active: scenarioRuntime.active,
+        flightPlanLength: scenarioRuntime.flightPlan.length,
+        scatterActive: scenarioRuntime.scatterActive,
+        scatterComplete: scenarioRuntime.scatterComplete
+      });
+      return;
+    }
+    debugLog('SCATTER STARTED', { pieces: scenarioRuntime.flightPlan.length });
     const now = performance.now();
     scenarioRuntime.scatterStartedAt = now;
     scenarioRuntime.scatterActive = true;
@@ -1732,6 +1773,7 @@
 
     if (!allDone) return;
 
+    debugLog('SCATTER ANIMATION COMPLETE (natural)', {});
     finalizeScenarioFlightPlan();
   }
 
@@ -1784,6 +1826,12 @@
     const reason = scenarioRuntime.scatterActive ? 'timeout-mid-scatter' : 'contact-not-detected';
     console.warn(`[CHUKO 0.12.3] scenario scatter did not finish naturally (${reason}); forcing planned outcome`, {
       ticketId: gameState.ticket?.ticketId, plan: scenarioRuntime.plan
+    });
+    debugLog('FORCED COMPLETE (contact/scatter never finished naturally)', {
+      reason,
+      sakaY: saka?.position?.y?.toFixed?.(3),
+      impactBoosted: throwState.impactBoosted,
+      scatterActive: scenarioRuntime.scatterActive
     });
 
     finalizeScenarioFlightPlan();
@@ -2308,6 +2356,14 @@
       vz = Math.max(-maxSpeed, Math.min(maxSpeed, (tp.z - saka.position.z) / closeT));
     }
 
+    debugLogThrottled('steering', {
+      sakaY: saka.position.y.toFixed(3),
+      contactY: contactY.toFixed(3),
+      horizontalError: horizontalError.toFixed(3),
+      t: t.toFixed(4),
+      vx: vx.toFixed(3), vz: vz.toFixed(3), vy: velocity.y.toFixed(3)
+    });
+
     sakaAggregate.body.setLinearVelocity(new BABYLON.Vector3(vx, velocity.y, vz));
   }
 
@@ -2607,6 +2663,23 @@
       flightTime: ballistic.flightTime
     };
 
+    debugRoundStartAt = performance.now();
+    debugLastLogAt = 0;
+    debugLog('THROW', {
+      power: power.toFixed(3),
+      start: { x: start.x.toFixed(3), y: start.y.toFixed(3), z: start.z.toFixed(3) },
+      target: { x: target.x.toFixed(3), y: target.y.toFixed(3), z: target.z.toFixed(3) },
+      landingPoint,
+      flightTimeSec: ballistic.flightTime.toFixed(3),
+      arcHeight: ballistic.arcHeight.toFixed(3),
+      velocity: { x: ballistic.velocity.x.toFixed(3), y: ballistic.velocity.y.toFixed(3), z: ballistic.velocity.z.toFixed(3) },
+      scenarioActive: scenarioRuntime.active,
+      deterministicScatter: C.game?.deterministicScatter !== false,
+      flightPlanLength: scenarioRuntime.flightPlan.length,
+      triggerHeight: Number(C.game?.sakaDeterministicContactTriggerY || 0.43),
+      triggerRadius: Number(C.game?.sakaDeterministicContactRadius || 0.22)
+    });
+
     ui.hint.textContent = `Удар ${Math.round(power * 100)}% · ждём контакт и разлёт`;
 
     // Pile remains STATIC after launch; onBeforeRender releases it only when SAKA is almost touching it.
@@ -2652,6 +2725,47 @@
     return out;
   }
 
+  // Fires the deterministic scenario contact exactly once per throw, however
+  // it was detected (real Havok collision or the height/radius heuristic
+  // below). Idempotent by the throwState.impactBoosted guard.
+  function triggerScenarioContact(point, source) {
+    if (!throwState.active || throwState.impactBoosted || !saka) return;
+    const tp = point || throwState.targetPoint || { x: saka.position.x, z: saka.position.z };
+    debugLog('CONTACT TRIGGERED', {
+      source: source || 'unknown',
+      sakaY: saka.position.y.toFixed(3),
+      sakaXZ: { x: saka.position.x.toFixed(3), z: saka.position.z.toFixed(3) },
+      targetPoint: throwState.targetPoint
+    });
+    pileReleasedForThrow = true; // bookkeeping only; pile stays STATIC either way
+    throwState.impactBoosted = true;
+    triggerImpactFx(tp, throwState.power || 0.6);
+    if (aimTarget) aimTarget.setEnabled(false);
+    // No post-impact steering and no late correction. The whole scatter uses
+    // the precomputed landing plan prepared before the throw.
+    startScenarioScatter();
+  }
+
+  // Real contact detection: fires the moment Havok reports SAKA actually
+  // touching a chükö/KHAN collider, instead of guessing from position alone.
+  // This is the primary trigger for deterministic rounds - the height/radius
+  // check in applyImpactBoostIfNeeded() is only a fallback in case a
+  // collision event is ever missed (sleeping bodies, engine quirks, etc.).
+  function onSakaCollision(evt) {
+    const otherNode = evt?.collidedAgainst?.transformNode;
+    const name = otherNode?.name || '(none)';
+    debugLog('HAVOK COLLISION EVENT', {
+      with: name,
+      type: evt?.type,
+      thrown, throwStateActive: throwState.active, impactBoosted: throwState.impactBoosted,
+      scenarioActive: scenarioRuntime.active
+    });
+    if (!thrown || !throwState.active || throwState.impactBoosted) return;
+    if (!scenarioRuntime.active || C.game?.deterministicScatter === false) return;
+    if (!name.startsWith('chuko-') && name !== 'KHAN') return;
+    triggerScenarioContact(null, 'collision:' + name);
+  }
+
   function applyImpactBoostIfNeeded() {
     const cfg = C.throw.impactBoost;
     if (!cfg?.enabled || !throwState.active || throwState.impactBoosted || !saka || !throwState.targetPoint) return;
@@ -2671,22 +2785,22 @@
       ? Number(C.game?.sakaDeterministicContactRadius || 0.22)
       : Number(cfg.triggerRadius || 0.48);
 
+    debugLogThrottled('falling', {
+      sakaY: saka.position.y.toFixed(3),
+      sakaVelY: sakaVelocity.y.toFixed(3),
+      distPre: distPre.toFixed(3),
+      triggerHeight, triggerRadius,
+      deterministicRound,
+      pileReleasedForThrow
+    });
+
     if (deterministicRound) {
-      // Deterministic rounds have exactly one contact rule, evaluated only
-      // here - not shared with / raced against releasePileIfImpactIsImminent(),
-      // which no longer touches pileReleasedForThrow for these rounds. That
-      // guarantees the scatter always starts on this same, single condition
-      // instead of sometimes firing early (via the looser physics-release
-      // check) and sometimes late (waiting out a missed narrow window after
-      // a bounce off the still-static pile).
+      // Fallback only: onSakaCollision() above is the primary trigger and
+      // normally fires first, well before this approximate height/radius
+      // check would. This still exists in case the real collision event is
+      // ever missed.
       if (saka.position.y > triggerHeight || distPre > triggerRadius) return;
-      pileReleasedForThrow = true; // bookkeeping only; pile stays STATIC either way
-      throwState.impactBoosted = true;
-      triggerImpactFx(tp, throwState.power || 0.6);
-      if (aimTarget) aimTarget.setEnabled(false);
-      // No post-impact steering and no late correction. The whole scatter uses
-      // the precomputed landing plan prepared before the throw.
-      startScenarioScatter();
+      triggerScenarioContact(tp, 'height-radius-fallback');
       return;
     }
 
