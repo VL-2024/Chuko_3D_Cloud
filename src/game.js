@@ -202,6 +202,14 @@
   function releasePileIfImpactIsImminent() {
     if (pileReleasedForThrow || !throwState.active || !saka || !sakaAggregate || !throwState.targetPoint) return;
 
+    // Deterministic scenario rounds never physically release the pile here -
+    // it stays STATIC until startScenarioScatter() runs the precomputed
+    // flight plan. The single, authoritative contact trigger for that is in
+    // applyImpactBoostIfNeeded(); this function must not also flip
+    // pileReleasedForThrow with its own, looser thresholds, or the scatter
+    // start becomes a race between two different contact definitions.
+    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) return;
+
     const velocity = readLinearVelocity(sakaAggregate.body);
     if (velocity.y >= -0.12) return;
 
@@ -216,12 +224,6 @@
     // changing the final landing point.
     if (saka.position.y > releaseY || horizontalError > maxError) return;
 
-    if (scenarioRuntime.active && C.game?.deterministicScatter !== false) {
-      // Scenario rounds keep the pile static until the single deterministic
-      // scatter animation starts at contact.
-      pileReleasedForThrow = true;
-      return;
-    }
     setPileBodiesMotionDynamic();
     pileReleasedForThrow = true;
   }
@@ -1439,10 +1441,13 @@
     let best = null;
     let bestSep = -1;
 
-    // Try angle + metric variations around the requested slot.
+    // Try angle + metric variations around the requested slot. Outside
+    // (targeted/выбитые) points get more wiggle room than before so the
+    // separation search can actually spread them apart instead of settling
+    // for a tight, near-identical radius/angle every time.
     for (let attempt = 0; attempt < 18; attempt++) {
-      const a = angle + (rng() - 0.5) * (inside ? 0.26 : 0.16);
-      const m = metric + (rng() - 0.5) * (inside ? 0.055 : 0.035);
+      const a = angle + (rng() - 0.5) * (inside ? 0.26 : 0.24);
+      const m = metric + (rng() - 0.5) * (inside ? 0.055 : 0.065);
       const p = worldPointForWhiteMetric(a, m, y);
       const sep = usedPoints.length
         ? Math.min(...usedPoints.map(other => pointDistanceXZ(p, other)))
@@ -1553,7 +1558,7 @@
       const y = 0.095 + rng()*0.020;
 
       let targetPosition = chooseSeparatedWhiteMetricPoint(
-        angle, metric, y, usedLandingPoints, minSep*1.12, rng, false
+        angle, metric, y, usedLandingPoints, minSep*1.30, rng, false
       );
       targetPosition = keepWorldPointInsideScreen(targetPosition, angle, metric, y, rng);
       usedLandingPoints.push(targetPosition);
@@ -1629,9 +1634,13 @@
         ? outsideMin + (outsideMax-outsideMin)*(0.45+0.55*rng())
         : 0.26 + rng()*0.14;
 
+      // NB: targeted (out) and non-targeted (still inside) KHAN previously used
+      // the exact same separation multiplier here (a copy/paste leftover) -
+      // the targeted case now gets more room, matching the wider spread the
+      // regular выбитые chükö get above.
       let targetPosition = chooseSeparatedWhiteMetricPoint(
         angle, metric, targeted?0.14:0.135,
-        usedLandingPoints, targeted ? minSep*1.20 : minSep*1.20, rng, !targeted
+        usedLandingPoints, targeted ? minSep*1.30 : minSep*1.10, rng, !targeted
       );
       if (targeted) targetPosition = keepWorldPointInsideScreen(targetPosition, angle, metric, 0.14, rng);
       usedLandingPoints.push(targetPosition);
@@ -2637,14 +2646,32 @@
       ? Number(C.game?.sakaDeterministicContactTriggerY || 0.43)
       : Number(cfg.triggerHeight || 0.72);
     const triggerRadius = deterministicRound
-      ? Number(C.game?.sakaDeterministicContactRadius || 0.10)
+      ? Number(C.game?.sakaDeterministicContactRadius || 0.22)
       : Number(cfg.triggerRadius || 0.48);
 
-    // Safety fallback: if the pile has not yet been released but SAKA is already
-    // descending into the real impact zone, release it right now so the scatter
-    // can still happen in this same frame.
+    if (deterministicRound) {
+      // Deterministic rounds have exactly one contact rule, evaluated only
+      // here - not shared with / raced against releasePileIfImpactIsImminent(),
+      // which no longer touches pileReleasedForThrow for these rounds. That
+      // guarantees the scatter always starts on this same, single condition
+      // instead of sometimes firing early (via the looser physics-release
+      // check) and sometimes late (waiting out a missed narrow window after
+      // a bounce off the still-static pile).
+      if (saka.position.y > triggerHeight || distPre > triggerRadius) return;
+      pileReleasedForThrow = true; // bookkeeping only; pile stays STATIC either way
+      throwState.impactBoosted = true;
+      triggerImpactFx(tp, throwState.power || 0.6);
+      if (aimTarget) aimTarget.setEnabled(false);
+      // No post-impact steering and no late correction. The whole scatter uses
+      // the precomputed landing plan prepared before the throw.
+      startScenarioScatter();
+      return;
+    }
+
+    // Physics-only fallback: release the pile the moment SAKA enters the
+    // (looser) impact zone, same as before.
     if (!pileReleasedForThrow && saka.position.y <= triggerHeight && distPre <= triggerRadius) {
-      if (!deterministicRound) setPileBodiesMotionDynamic();
+      setPileBodiesMotionDynamic();
       pileReleasedForThrow = true;
     }
     if (!pileReleasedForThrow) return;
@@ -2652,13 +2679,6 @@
     throwState.impactBoosted = true;
     triggerImpactFx(tp, throwState.power || 0.6);
     if (aimTarget) aimTarget.setEnabled(false);
-
-    if (deterministicRound) {
-      // No post-impact steering and no late correction. The whole scatter uses
-      // the precomputed landing plan prepared before the throw.
-      startScenarioScatter();
-      return;
-    }
 
     // Physics-only fallback keeps the old Havok impact boost.
     const affectRadius = Math.max(0.35, Number(cfg.affectRadius || 1.24));
