@@ -2203,10 +2203,10 @@
     // hit at the bottom -> pieces travel through the centre toward the top, etc.
     const scatterAxisAngle = Math.atan2(pileZ - tp.z, pileX - tp.x);
 
-    const insideMin = Number(C.game?.scatterInsideMetricMin || 0.52);
-    const insideMax = Number(C.game?.scatterInsideMetricMax || 0.96);
-    const insideEdgeMin = Number(C.game?.scatterInsideEdgeMetricMin || 0.88);
-    const insideEdgeMax = Number(C.game?.scatterInsideEdgeMetricMax || 0.97);
+    const insideMin = Number(C.game?.scatterInsideMetricMin || 0.38);
+    const insideMax = Number(C.game?.scatterInsideMetricMax || 0.68);
+    const insideEdgeMin = Number(C.game?.scatterInsideEdgeMetricMin || 0.70);
+    const insideEdgeMax = Number(C.game?.scatterInsideEdgeMetricMax || 0.80);
     const outsideMin = Number(C.game?.scatterOutsideMetricMin || 1.12);
     const outsideMax = Number(C.game?.scatterOutsideMetricMax || 1.22);
     const minSep = Number(C.game?.scatterMinSeparationWorld || 0.56);
@@ -2253,9 +2253,13 @@
     });
 
     // IN points:
-    // spread around the whole white circle with a minimum separation.
-    // Some pieces deliberately sit close enough to the line that their body can
-    // overlap it by about 15-20%, but their centre stays inside.
+    // spread around the whole white circle with a minimum separation, kept
+    // with a clear visual margin from the chalk line itself - v0.12.3 let
+    // "roughly every third" piece sit almost on the line (metric up to
+    // 0.97), which on this photo-realistic field reads as "outside" to
+    // the player even though it's still technically inside, making the
+    // score look wrong. Only an occasional piece is now allowed near the
+    // (safer, lower) edge band, and the rest stay solidly inside it.
     insideIds.forEach((id,order)=>{
       const item = roundPool.chukos[id];
       if (!item?.mesh) return;
@@ -2265,13 +2269,12 @@
       const angle = scatterAxisAngle + order*golden + (rng()-0.5)*0.18;
 
       let metric;
-      // Roughly every third inside piece is allowed near the white line.
-      if (order % 3 === 0) {
+      if (order % 5 === 0) {
         metric = insideEdgeMin + (insideEdgeMax-insideEdgeMin)*rng();
       } else {
         const t = (order + 0.5) / n;
-        const shaped = 0.22 + 0.70*Math.sqrt(Math.max(0,Math.min(1,t)));
-        metric = insideMin + (insideMax-insideMin)*Math.min(0.88, shaped);
+        const shaped = 0.20 + 0.55*Math.sqrt(Math.max(0,Math.min(1,t)));
+        metric = insideMin + (insideMax-insideMin)*Math.min(0.75, shaped);
       }
 
       const y = 0.090 + rng()*0.024;
