@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#07131a" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>ЧҮКӨ Modern 3D · LMS/scenarios 0.12.3</title>
+  <link rel="stylesheet" href="styles.css?v=0.12.3" />
+</head>
+<body>
+  <main id="app">
+    <div class="art-stack" aria-hidden="true">
+      <img class="bg-photo" src="assets/background-realistic.webp" alt="" />
+      <img class="field-photo" src="assets/field-realistic.webp" alt="" />
+      <div class="field-tone"></div>
+      <div class="field-focus"></div>
+      <div class="art-vignette"></div>
+    </div>
+
+    <canvas id="renderCanvas" touch-action="none" aria-label="3D поле ЧҮКӨ"></canvas>
+
+    <header class="hud top-safe">
+      <div class="brand"><b>X2</b> LOTO <span>· ЧҮКӨ Modern 3D</span><em>v0.12.3 · LMS</em></div>
+      <div class="badge" id="physicsBadge">HAVOK · загрузка…</div>
+    </header>
+
+
+    <section class="game-bar" aria-label="Игровая информация">
+      <div class="mode-switch" role="group" aria-label="Режим игры">
+        <button id="demoModeBtn" class="mode active" type="button">DEMO</button>
+        <button id="realModeBtn" class="mode" type="button">REAL</button>
+      </div>
+      <div class="ticket-box"><span>БИЛЕТ</span><strong id="ticketNo">—</strong></div>
+      <div class="balance-box"><span>БАЛАНС</span><strong id="balanceValue">—</strong></div>
+    </section>
+
+    <section class="denom-bar" aria-label="Номинал билета">
+      <span>НОМИНАЛ</span>
+      <button class="denom active" type="button" data-denom="25">25</button>
+      <button class="denom" type="button" data-denom="50">50</button>
+      <button class="denom" type="button" data-denom="100">100</button>
+      <em>сом</em>
+    </section>
+
+    <section id="resultCard" class="result-card" hidden aria-live="polite">
+      <span class="result-kicker">РЕЗУЛЬТАТ</span>
+      <strong id="resultMain">Выбито: 0</strong>
+      <span id="resultSub">ХАН остался в круге</span>
+    </section>
+
+    <section class="perf" id="perfPanel" aria-live="polite">
+      <div><span>FPS</span><strong id="fps">—</strong></div>
+      <div><span>frame</span><strong id="frameMs">— ms</strong></div>
+      <div><span>bodies</span><strong id="bodyCount">—</strong></div>
+      <div><span>scale</span><strong id="renderScale">—</strong></div>
+    </section>
+
+    <section class="hint" id="hint">Потяните САКА назад и отпустите</section>
+    <section class="aim-power" id="aimPower" hidden>СИЛА <strong>0%</strong></section>
+
+
+    <button id="tuneBtn" class="tune-btn" type="button" aria-expanded="false">⚙ НАСТРОЙКА</button>
+
+    <aside id="tunePanel" class="tune-panel" hidden aria-label="Настройка композиции">
+      <div class="tune-head">
+        <div>
+          <strong>Подгонка экрана</strong>
+          <span>Значения сохраняются на этом устройстве</span>
+        </div>
+        <button id="tuneCloseBtn" type="button" class="tune-close">×</button>
+      </div>
+
+      <section class="tune-group">
+        <h3>ФОН И ПОЛЕ</h3>
+        <label class="tune-row">
+          <span>Размер поля <output data-out="fieldWidth"></output></span>
+          <input type="range" min="88" max="116" step="1" data-tune="fieldWidth">
+        </label>
+        <label class="tune-row">
+          <span>Поле выше / ниже <output data-out="fieldBottom"></output></span>
+          <input type="range" min="90" max="280" step="2" data-tune="fieldBottom">
+        </label>
+        <label class="tune-row">
+          <span>Поле влево / вправо <output data-out="fieldX"></output></span>
+          <input type="range" min="-90" max="90" step="2" data-tune="fieldX">
+        </label>
+        <label class="tune-row">
+          <span>Масштаб фона <output data-out="bgScale"></output></span>
+          <input type="range" min="0.92" max="1.28" step="0.01" data-tune="bgScale">
+        </label>
+        <label class="tune-row">
+          <span>Фон выше / ниже <output data-out="bgY"></output></span>
+          <input type="range" min="-140" max="140" step="2" data-tune="bgY">
+        </label>
+        <label class="tune-row">
+          <span>Фон влево / вправо <output data-out="bgX"></output></span>
+          <input type="range" min="-100" max="100" step="2" data-tune="bgX">
+        </label>
+      </section>
+
+      <section class="tune-group">
+        <h3>КУЧКА ЧҮКӨ</h3>
+        <label class="tune-row">
+          <span>Кучка влево / вправо <output data-out="pileX"></output></span>
+          <input type="range" min="-0.80" max="0.80" step="0.02" data-tune="pileX">
+        </label>
+        <label class="tune-row">
+          <span>Кучка вперёд / назад <output data-out="pileZ"></output></span>
+          <input type="range" min="-1.80" max="0.55" step="0.02" data-tune="pileZ">
+        </label>
+        <label class="tune-row">
+          <span>Ширина кучки <output data-out="spreadX"></output></span>
+          <input type="range" min="0.38" max="1.00" step="0.02" data-tune="spreadX">
+        </label>
+        <label class="tune-row">
+          <span>Глубина кучки <output data-out="spreadZ"></output></span>
+          <input type="range" min="0.26" max="0.82" step="0.02" data-tune="spreadZ">
+        </label>
+        <label class="tune-row">
+          <span>Размер чүкө <output data-out="chukoScale"></output></span>
+          <input type="range" min="0.50" max="1.00" step="0.02" data-tune="chukoScale">
+        </label>
+      </section>
+
+      <section class="tune-group">
+        <h3>3D КАМЕРА</h3>
+        <label class="tune-row">
+          <span>Общий размер 3D <output data-out="cameraRadius"></output></span>
+          <input type="range" min="7.40" max="10.60" step="0.05" data-tune="cameraRadius">
+        </label>
+        <label class="tune-row">
+          <span>3D влево / вправо <output data-out="cameraTargetX"></output></span>
+          <input type="range" min="-0.80" max="0.80" step="0.02" data-tune="cameraTargetX">
+        </label>
+        <label class="tune-row">
+          <span>3D вперёд / назад <output data-out="cameraTargetZ"></output></span>
+          <input type="range" min="-0.80" max="0.80" step="0.02" data-tune="cameraTargetZ">
+        </label>
+      </section>
+
+      <section class="tune-group">
+        <h3>GLB МОДЕЛИ</h3>
+        <label class="tune-row">
+          <span>Размер GLB чүкө <output data-out="chukoModelScale"></output></span>
+          <input type="range" min="0.72" max="1.28" step="0.02" data-tune="chukoModelScale">
+        </label>
+        <label class="tune-row">
+          <span>Высота GLB чүкө <output data-out="chukoModelY"></output></span>
+          <input type="range" min="-0.16" max="0.16" step="0.01" data-tune="chukoModelY">
+        </label>
+        <label class="tune-row">
+          <span>Размер GLB ХАН <output data-out="khanModelScale"></output></span>
+          <input type="range" min="0.72" max="1.28" step="0.02" data-tune="khanModelScale">
+        </label>
+        <label class="tune-row">
+          <span>Высота GLB ХАН <output data-out="khanModelY"></output></span>
+          <input type="range" min="-0.16" max="0.16" step="0.01" data-tune="khanModelY">
+        </label>
+        <label class="tune-row">
+          <span>Размер GLB САКА <output data-out="sakaModelScale"></output></span>
+          <input type="range" min="0.72" max="1.28" step="0.02" data-tune="sakaModelScale">
+        </label>
+        <label class="tune-row">
+          <span>Высота GLB САКА <output data-out="sakaModelY"></output></span>
+          <input type="range" min="-0.20" max="0.20" step="0.01" data-tune="sakaModelY">
+        </label>
+        <label class="tune-row">
+          <span>Поворот GLB САКА Y <output data-out="sakaModelYawDeg"></output></span>
+          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelYawDeg">
+        </label>
+        <label class="tune-row">
+          <span>Наклон GLB САКА X <output data-out="sakaModelPitchDeg"></output></span>
+          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelPitchDeg">
+        </label>
+        <label class="tune-row">
+          <span>Завал GLB САКА Z <output data-out="sakaModelRollDeg"></output></span>
+          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelRollDeg">
+        </label>
+      </section>
+
+      <section class="tune-group">
+        <h3>САКА</h3>
+        <label class="tune-row">
+          <span>САКА влево / вправо <output data-out="sakaX"></output></span>
+          <input type="range" min="-0.30" max="1.60" step="0.02" data-tune="sakaX">
+        </label>
+        <label class="tune-row">
+          <span>САКА ближе / дальше <output data-out="sakaZ"></output></span>
+          <input type="range" min="2.10" max="3.80" step="0.02" data-tune="sakaZ">
+        </label>
+      </section>
+
+      <div class="tune-actions">
+        <button id="tuneDefaultsBtn" type="button">СБРОСИТЬ НА 0.12.3</button>
+        <button id="tuneCopyBtn" type="button">КОПИРОВАТЬ ПАРАМЕТРЫ</button>
+      </div>
+      <textarea id="tuneOutput" class="tune-output" readonly rows="5" aria-label="Текущие параметры"></textarea>
+    </aside>
+
+    <footer class="controls bottom-safe">
+      <button id="throwBtn" class="primary">БРОСИТЬ САКА</button>
+      <button id="resetBtn" class="secondary">НОВАЯ ИГРА</button>
+      <div class="microcopy">LMS adapter · сервер/DEMO задаёт сценарий, 3D его визуализирует</div>
+    </footer>
+
+    <div class="fatal" id="fatal" hidden>
+      <strong>Не удалось запустить 3D-прототип</strong>
+      <span id="fatalText"></span>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs@9.25.0/babylon.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@9.25.0/babylonjs.loaders.min.js"></script>
+  <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
+  <script src="src/config.js?v=0.12.3"></script>
+  <script src="lms-config.js?v=0.12.3"></script>
+  <script src="src/scenario-config.js?v=0.12.3"></script>
+  <script src="lms-adapter.js?v=0.12.3"></script>
+  <script src="src/game.js?v=0.12.3"></script>
+</body>
+</html>
