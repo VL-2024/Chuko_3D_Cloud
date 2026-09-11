@@ -25,9 +25,9 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 /* ============ 3D render layer (Babylon canvas + 2D art backdrop) ============ */
 .render-layer{position:absolute;inset:0;z-index:1;overflow:hidden;background:#000}
 .art-stack{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-.bg-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;filter:brightness(.82) saturate(.84) contrast(.96)}
-.field-photo{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);width:min(102%,680px);max-width:none;height:auto;filter:brightness(.85) saturate(.74) contrast(.98)}
-.field-tone,.field-focus{position:absolute;left:50%;bottom:14%;transform:translateX(-50%);width:min(102%,680px);aspect-ratio:1/1;border-radius:50%}
+.bg-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 50%;transform:translate(var(--bg-x,0px),var(--bg-y,0px)) scale(var(--bg-scale,1));transform-origin:50% 50%;filter:brightness(.82) saturate(.84) contrast(.96)}
+.field-photo{position:absolute;left:50%;bottom:var(--field-bottom,162px);transform:translateX(-50%);margin-left:var(--field-x,0px);width:min(var(--field-width,102%),680px);max-width:none;height:auto;filter:brightness(.85) saturate(.74) contrast(.98)}
+.field-tone,.field-focus{position:absolute;left:50%;bottom:var(--field-bottom,162px);transform:translateX(-50%);margin-left:var(--field-x,0px);width:min(var(--field-width,102%),680px);aspect-ratio:1/1;border-radius:50%}
 .field-tone{background:radial-gradient(circle at 50% 50%,rgba(34,31,25,.22) 0%,rgba(27,25,20,.16) 44%,rgba(8,12,14,.08) 100%)}
 .field-focus{background:
   radial-gradient(ellipse at 50% 49%,rgba(9,10,12,.22) 0%,rgba(9,10,12,.16) 23%,rgba(9,10,12,.08) 34%,rgba(9,10,12,0) 52%),

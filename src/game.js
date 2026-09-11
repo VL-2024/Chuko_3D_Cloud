@@ -579,7 +579,7 @@
 
   function applyDomTuning() {
     const root = document.documentElement;
-    root.style.setProperty('--field-width', `${Number(tuning.fieldWidth)}vw`);
+    root.style.setProperty('--field-width', `${Number(tuning.fieldWidth)}%`);
     root.style.setProperty('--field-bottom', `${Number(tuning.fieldBottom)}px`);
     root.style.setProperty('--field-x', `${Number(tuning.fieldX)}px`);
     root.style.setProperty('--bg-scale', String(Number(tuning.bgScale)));
@@ -3255,13 +3255,14 @@
   function bindAimControls() {
     ui.canvas.addEventListener('pointerdown', (e) => {
       if (thrown || !saka || gameState.phase !== 'ready' || !gameState.ticketReady) return;
-      const p = canvasPointer(e);
+      // Only a press that starts on SAKA itself can lead to a throw - either
+      // a drag (aiming) or a plain tap-release. A tap anywhere else on the
+      // field must do nothing.
+      if (!isPointerNearSaka(e)) return;
+
       aimState.tapCandidate = true;
       aimState.downX = e.clientX;
       aimState.downY = e.clientY;
-
-      if (!isPointerNearSaka(e)) return;
-
       aimState.dragging = true;
       aimState.pointerId = e.pointerId;
       aimState.power = 0;
@@ -3290,16 +3291,13 @@
         aimState.pointerId = null;
         aimState.tapCandidate = false;
         if (ui.aimPower) ui.aimPower.hidden = true;
+        // A quick tap on SAKA (didn't pull back far enough to register real
+        // power) still throws, using the default auto-aim - same as before,
+        // just now gated on the press having started on SAKA (see
+        // pointerdown above), not anywhere on the field.
         if (power < 0.06 || !guideDir || !targetPoint) throwSaka();
         else throwSaka({ guideDir, targetPoint, power, manual: true });
         e.preventDefault();
-        return;
-      }
-
-      if (aimState.tapCandidate && !thrown && gameState.phase === 'ready' && gameState.ticketReady) {
-        const p = canvasPointer(e);
-        aimState.tapCandidate = false;
-        if (p.y < p.height * 0.82) throwSaka();
       }
     };
 
