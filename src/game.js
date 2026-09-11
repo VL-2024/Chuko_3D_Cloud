@@ -174,11 +174,16 @@
 
   function applyPilePieceScale() {
     if (!roundPool.initialized) return;
-    const s = pilePieceScale();
+    // v0.12.4: chükö geometry/physics dims are now baked pre-scaled at
+    // creation time in ensureRoundPool(), so the proxy mesh itself needs no
+    // extra node-level scaling any more - it's already the right size.
+    // Setting scaling here again would only double up on that (and still
+    // would not reach the already-built Havok collider, so it was never
+    // doing anything useful for gameplay anyway).
     for (const item of roundPool.chukos) {
-      if (item?.mesh?.scaling?.setAll) item.mesh.scaling.setAll(s);
+      if (item?.mesh?.scaling?.setAll) item.mesh.scaling.setAll(1);
     }
-    // chukoScale changes only the 12 regular chükö. KHAN keeps its own scale.
+    // KHAN always keeps its own, separate (unscaled) size.
     if (roundPool.khan?.mesh?.scaling?.setAll) roundPool.khan.mesh.scaling.setAll(1);
     applyAllVisualTuning();
     updatePileShadow();
@@ -1193,10 +1198,27 @@
 
     const d = C.pieces.chuko;
     const pileScale = pilePieceScale();
+    // Bake the intended gameplay scale directly into the geometry/physics
+    // dims instead of scaling the mesh node after the fact. makeOrganicBone()
+    // builds real vertex positions from these numbers, and the CONVEX_HULL
+    // PhysicsAggregate created right after captures that geometry at whatever
+    // size it has at that moment - a later `mesh.scaling.setAll(pileScale)`
+    // (applyPilePieceScale()) never reaches the already-built Havok shape, so
+    // the collider used to stay full-size while the pile-placement math
+    // elsewhere assumed a `pileScale`-sized piece. That gap left an
+    // oversized, invisible physics pile: SAKA rested on top of it well above
+    // where the pieces are actually drawn and the contact trigger never saw
+    // a real hit.
+    const chukoPhysicsDims = {
+      width: d.width * pileScale,
+      height: d.height * pileScale,
+      depth: d.depth * pileScale,
+      mass: d.mass
+    };
     for (let i = 0; i < C.pile.chukoCount; i++) {
       const item = createPiece(
         `chuko-${i+1}`,
-        d,
+        chukoPhysicsDims,
         new BABYLON.Vector3(0, 4 + i * 0.03, 0),
         chukoColors[i % chukoColors.length],
         false,
