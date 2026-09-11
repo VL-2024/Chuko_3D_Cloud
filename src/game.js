@@ -2077,14 +2077,24 @@
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
+    // The angle passed in is always measured around the pile centre
+    // (tuning.pileX/pileZ - see scatterAxisAngle and everything derived
+    // from it), not around the world origin. The radial search below must
+    // pivot on that same point, or "angle" and "metric" stop meaning the
+    // same thing and every placement silently skews toward whichever
+    // direction reduces the pile's offset from the origin (here mostly
+    // -Z, i.e. visibly "down" on screen, since pileZ is a large negative
+    // default).
+    const pileX = Number(tuning.pileX || 0);
+    const pileZ = Number(tuning.pileZ || 0);
     let lo = 0.06;
     let hi = 3.20;
-    let best = new BABYLON.Vector3(Math.cos(angle)*1.5, y, Math.sin(angle)*1.5);
+    let best = new BABYLON.Vector3(pileX + Math.cos(angle)*1.5, y, pileZ + Math.sin(angle)*1.5);
     let bestDiff = Number.POSITIVE_INFINITY;
 
     for (let i=0;i<28;i++) {
       const r = (lo+hi)*0.5;
-      const probe = new BABYLON.Vector3(Math.cos(angle)*r, y, Math.sin(angle)*r);
+      const probe = new BABYLON.Vector3(pileX + Math.cos(angle)*r, y, pileZ + Math.sin(angle)*r);
       const metric = whiteRingMetricForWorld(probe);
       if (metric == null || !Number.isFinite(metric)) break;
       const diff = Math.abs(metric-targetMetric);
