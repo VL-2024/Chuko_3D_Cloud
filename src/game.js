@@ -234,7 +234,7 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 280,
+    fieldBottom: 340,
     fieldX: 0,
     bgScale: 1.01,
     bgX: 0,
@@ -541,6 +541,15 @@
     applyVisualTuning(roundPool.saka?.visual);
   }
 
+  function sakaVisualLiftY(mesh) {
+    const pileX = Number(tuning.pileX || 0);
+    const pileZ = Number(tuning.pileZ || 0);
+    const radialFromPile = Math.hypot(mesh.position.x - pileX, mesh.position.z - pileZ);
+    const edgeDelta = Math.max(0, radialFromPile - SAKA_VISUAL_LIFT_EDGE_START);
+    const extraLift = Math.min(SAKA_VISUAL_LIFT_EDGE_MAX, edgeDelta * SAKA_VISUAL_LIFT_EDGE_FACTOR);
+    return SAKA_VISUAL_LIFT_BASE + extraLift;
+  }
+
   function syncVisualItem(item) {
     if (!item?.mesh || !item?.visual?.anchor) return;
     const anchor = item.visual.anchor;
@@ -548,19 +557,9 @@
     if (item.visual?.kind === 'saka') {
       // Visual-only anti-clipping lift. It does not touch Havok physics.
       // The extra lift is radial, so it also works on the left/right edges,
-      // not only on the far Z edge.
-      const pileX = Number(tuning.pileX || 0);
-      const pileZ = Number(tuning.pileZ || 0);
-      const radialFromPile = Math.hypot(
-        item.mesh.position.x - pileX,
-        item.mesh.position.z - pileZ
-      );
-      const edgeDelta = Math.max(0, radialFromPile - SAKA_VISUAL_LIFT_EDGE_START);
-      const extraLift = Math.min(
-        SAKA_VISUAL_LIFT_EDGE_MAX,
-        edgeDelta * SAKA_VISUAL_LIFT_EDGE_FACTOR
-      );
-      anchor.position.y += SAKA_VISUAL_LIFT_BASE + extraLift;
+      // not only on the far Z edge. Shared with sakaScreenPosition() so the
+      // tap/drag hit-test lines up with where SAKA is actually drawn.
+      anchor.position.y += sakaVisualLiftY(item.mesh);
     }
     if (item.mesh.rotationQuaternion) {
       if (!anchor.rotationQuaternion) anchor.rotationQuaternion = BABYLON.Quaternion.Identity();
@@ -3147,7 +3146,14 @@
   function sakaScreenPosition() {
     if (!saka || !scene?.activeCamera) return null;
     const viewport = scene.activeCamera.viewport.toGlobal(ui.canvas.clientWidth, ui.canvas.clientHeight);
-    return BABYLON.Vector3.Project(saka.position, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), viewport);
+    // Project the same point that is actually drawn on screen (mesh position
+    // plus the visual-only anti-clipping lift applied in syncVisualItem),
+    // not the invisible physics proxy's raw position. Otherwise the tap/drag
+    // hit-test circle sits below the visible SAKA sprite and only its lower
+    // edge is tappable.
+    const liftedY = saka.position.y + sakaVisualLiftY(saka);
+    const point = new BABYLON.Vector3(saka.position.x, liftedY, saka.position.z);
+    return BABYLON.Vector3.Project(point, BABYLON.Matrix.Identity(), scene.getTransformMatrix(), viewport);
   }
 
 

@@ -109,8 +109,8 @@ window.CHUKO3D_CONFIG = Object.freeze({
     maxPullPxDesktop: 132,
     sakaPullWorld: 0.62,
     tapThresholdPx: 10,
-    sakaTouchRadiusMobile: 74,
-    sakaTouchRadiusDesktop: 58
+    sakaTouchRadiusMobile: 108,
+    sakaTouchRadiusDesktop: 84
   },
 
   camera: {

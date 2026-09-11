@@ -75,37 +75,37 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .aim-power strong{margin-left:5px;color:#e4ee3e;font-size:12px}
 
 .bottom-tools{
-  position:absolute;left:3.7%;right:3.7%;top:63.3%;
+  position:absolute;left:3.7%;right:3.7%;bottom:0.6%;
   display:grid;grid-template-columns:minmax(0,60%) minmax(0,40%);
   align-items:center;gap:0;z-index:12;pointer-events:auto
 }
 .bottom-controls{min-width:0;display:flex;align-items:center;gap:7px}
 .mode-switch{
-  position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:10px;overflow:hidden;
+  position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:11px;overflow:hidden;
   background:rgba(3,23,54,.90);box-shadow:0 4px 10px rgba(0,0,0,.14)
 }
 .mode-switch.hidden{display:none}
-.mode-switch button{border:0;min-width:46px;padding:4px 7px;background:transparent;color:#8196b2;font-weight:900;font-size:9px;line-height:1.05}
+.mode-switch button{border:0;min-width:58px;padding:6px 9px;background:transparent;color:#8196b2;font-weight:900;font-size:13px;line-height:1.1}
 .mode-switch button.active{background:#24499e;color:#dbe63c}
 .mode-switch button:disabled{opacity:.4}
 
 .info-wrap{position:relative}
 .info-btn{
-  min-width:60px;height:28px;padding:0 11px;border:1px solid rgba(117,163,211,.38);border-radius:11px;
-  background:rgba(3,23,54,.92);color:#dbe63c;font-size:10px;font-weight:950;line-height:1;cursor:pointer
+  min-width:74px;height:36px;padding:0 14px;border:1px solid rgba(117,163,211,.38);border-radius:13px;
+  background:rgba(3,23,54,.92);color:#dbe63c;font-size:14px;font-weight:950;line-height:1;cursor:pointer
 }
 .info-btn.active{border-color:rgba(219,230,60,.62);background:#24499e}
 
 .audio-toggle{
-  flex:0 0 34px;width:34px;height:28px;padding:0;display:grid;place-items:center;border-radius:11px;
-  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:14px;font-weight:950;line-height:1;cursor:pointer
+  flex:0 0 42px;width:42px;height:36px;padding:0;display:grid;place-items:center;border-radius:13px;
+  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:20px;font-weight:950;line-height:1;cursor:pointer
 }
 .audio-toggle.on{border-color:rgba(219,230,60,.48);color:#dbe63c;background:#173d82}
 .audio-toggle:active{transform:translateY(1px)}
 
 .bottom-tools>.ticket-number{
   margin-left:0;max-width:none;width:100%;padding:0 0 0 8px;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(7px,1.55vw,9px);font-weight:800;line-height:28px
+  white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(10px,2.2vw,13px);font-weight:800;line-height:36px
 }
 
 .info-menu{
@@ -295,10 +295,10 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   .autoplay-btn{flex-basis:35%;min-width:80px;font-size:10px}
   .bottom-tools{left:2.5%;right:2.5%;grid-template-columns:minmax(0,60%) minmax(0,40%)}
   .bottom-controls{gap:4px}
-  .mode-switch button{min-width:36px;padding:4px 4px}
-  .info-btn{min-width:52px;height:27px;padding:0 7px;font-size:9px}
-  .audio-toggle{flex-basis:30px;width:30px;height:27px;font-size:13px}
-  .bottom-tools>.ticket-number{font-size:7px;line-height:27px;padding-left:5px}
+  .mode-switch button{min-width:44px;padding:5px 5px;font-size:11px}
+  .info-btn{min-width:64px;height:32px;padding:0 10px;font-size:12px}
+  .audio-toggle{flex-basis:36px;width:36px;height:32px;font-size:17px}
+  .bottom-tools>.ticket-number{font-size:10px;line-height:32px;padding-left:5px}
   .autoplay-menu{width:176px}
   .denom-strip{left:12%;right:12%}
   .denom-option{min-width:52px;height:29px;padding:0 10px;font-size:10px}
