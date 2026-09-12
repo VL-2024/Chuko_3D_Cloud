@@ -585,12 +585,26 @@
 
   function applyDomTuning() {
     const root = document.documentElement;
+    // --field-bottom/--field-x/--bg-x/--bg-y are stored as "pixels at a
+    // 941x1672 reference shell size" and rescaled to the shell's ACTUAL
+    // current size here. Without this, a fixed px offset is a different
+    // fraction of shell height on a 654px-tall shell (Samsung Internet)
+    // than on a 727-772px-tall one (Safari/Telegram/MAX) even though both
+    // have the same aspect ratio - the 2D art layer (photo) would drift
+    // out of alignment with the 3D scene (which is purely ratio-based)
+    // any time the shell's absolute pixel size differs between devices.
+    const shellEl = ui.shellEl || (ui.shellEl = document.getElementById('shell'));
+    const shellRect = shellEl ? shellEl.getBoundingClientRect() : null;
+    const REF_W = 941, REF_H = 1672;
+    const scaleW = shellRect && shellRect.width ? shellRect.width / REF_W : 1;
+    const scaleH = shellRect && shellRect.height ? shellRect.height / REF_H : 1;
+
     root.style.setProperty('--field-width', `${Number(tuning.fieldWidth)}%`);
-    root.style.setProperty('--field-bottom', `${Number(tuning.fieldBottom)}px`);
-    root.style.setProperty('--field-x', `${Number(tuning.fieldX)}px`);
+    root.style.setProperty('--field-bottom', `${(Number(tuning.fieldBottom) * scaleH).toFixed(2)}px`);
+    root.style.setProperty('--field-x', `${(Number(tuning.fieldX) * scaleW).toFixed(2)}px`);
     root.style.setProperty('--bg-scale', String(Number(tuning.bgScale)));
-    root.style.setProperty('--bg-x', `${Number(tuning.bgX)}px`);
-    root.style.setProperty('--bg-y', `${Number(tuning.bgY)}px`);
+    root.style.setProperty('--bg-x', `${(Number(tuning.bgX) * scaleW).toFixed(2)}px`);
+    root.style.setProperty('--bg-y', `${(Number(tuning.bgY) * scaleH).toFixed(2)}px`);
     updatePileShadow();
   }
 
@@ -4034,7 +4048,10 @@
     // firing in every browser (in-app browsers in particular - see the
     // #shell-size-style script in index.html), so engine.resize() also
     // listens to the same set of triggers that script uses.
-    const scheduleEngineResize = () => requestAnimationFrame(() => engine.resize());
+    const scheduleEngineResize = () => requestAnimationFrame(() => {
+      applyDomTuning(); // rescale the 2D art layer to match the (possibly new) shell size
+      engine.resize();
+    });
     window.addEventListener('resize', scheduleEngineResize, { passive: true });
     window.addEventListener('orientationchange', () => {
       setTimeout(scheduleEngineResize, 60);
