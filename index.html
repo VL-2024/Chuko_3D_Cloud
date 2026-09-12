@@ -62,6 +62,32 @@
   setTimeout(layoutShell, 300);
   setTimeout(layoutShell, 1000);
   setTimeout(layoutShell, 2000);
+
+  // TEMPORARY on-screen readout for diagnosing in-app browsers (Telegram,
+  // etc.) without needing remote debugging - shows up on a plain
+  // screenshot. Safe to delete this whole block (and the #viewportDebug
+  // div in the body) once the sizing issue is confirmed fixed.
+  function printViewportDebug() {
+    var el = document.getElementById('viewportDebug');
+    if (!el) return;
+    var vv = window.visualViewport;
+    var shell = document.getElementById('shell');
+    var rect = shell ? shell.getBoundingClientRect() : null;
+    el.textContent =
+      'innerW/H: ' + window.innerWidth + ' x ' + window.innerHeight + '\n' +
+      'docEl clientW/H: ' + document.documentElement.clientWidth + ' x ' + document.documentElement.clientHeight + '\n' +
+      'visualViewport: ' + (vv ? (vv.width.toFixed(0) + ' x ' + vv.height.toFixed(0) + ' @' + vv.scale.toFixed(2) + 'x, offset ' + vv.offsetLeft.toFixed(0) + ',' + vv.offsetTop.toFixed(0)) : 'unsupported') + '\n' +
+      'devicePixelRatio: ' + window.devicePixelRatio + '\n' +
+      'shell rect: ' + (rect ? (rect.width.toFixed(0) + ' x ' + rect.height.toFixed(0) + ' @ ' + rect.left.toFixed(0) + ',' + rect.top.toFixed(0)) : 'n/a') + '\n' +
+      'UA: ' + navigator.userAgent.slice(0, 60);
+  }
+  printViewportDebug();
+  window.addEventListener('resize', printViewportDebug);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', printViewportDebug);
+  document.addEventListener('DOMContentLoaded', printViewportDebug);
+  setTimeout(printViewportDebug, 300);
+  setTimeout(printViewportDebug, 1000);
+  setTimeout(printViewportDebug, 2000);
 })();
 </script>
 </head>
@@ -345,6 +371,7 @@
     </div>
 
     <div class="debug">v0.13.0 · Babylon.js 9.25 + Havok · LMS UI из v20.61</div>
+    <div id="viewportDebug" style="position:fixed;left:4px;top:4px;z-index:99999;padding:4px 7px;background:rgba(0,0,0,.72);color:#0f0;font:10px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre;pointer-events:none;"></div>
   </div>
 </div>
 
