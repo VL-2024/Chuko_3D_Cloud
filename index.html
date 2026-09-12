@@ -10,34 +10,60 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>ЧҮКӨ Modern 3D — LMS/scenarios 0.13</title>
+<link rel="stylesheet" href="styles.css?v=0.13.0">
+<style id="shell-size-style"></style>
 <script>
-// In-app browsers (Telegram, Instagram, VK, etc.) run on WebViews where the
-// CSS `dvh` unit is either unsupported or reports an inconsistent value,
-// which stretched the whole .shell container far taller than intended and
-// spread the 3D scene out over that extra height. window.visualViewport is
-// the one API that reliably reports the ACTUAL visible area across these
-// WebViews, so it drives the --app-vh custom property CSS falls back to.
-// Runs synchronously before first paint and stays live afterward, since
-// some of these in-app browsers resize their own chrome (URL bar, etc.)
-// after the page has already loaded.
+// "не помогло": switching the CSS calc from `dvh` to a JS-driven `vh`
+// custom property (previous attempt) still didn't fix in-app browsers
+// (Telegram/Instagram/VK). Those WebViews can be unreliable not just for
+// the `dvh` unit but for `calc()`/`aspect-ratio` sizing math in general.
+// This drops CSS viewport math entirely: plain JS computes the exact
+// pixel width/height from window.innerWidth and
+// window.visualViewport.height (falling back to innerHeight), and writes
+// them into a <style> tag as a hard #shell{width:...px;height:...px}
+// rule (!important, so it always wins over anything in styles.css
+// regardless of load order). Only window.innerWidth/innerHeight and
+// visualViewport are used - no vh, dvh, vw, or aspect-ratio math for the
+// actual sizing, since those are exactly the pieces that already proved
+// unreliable here.
 (function () {
-  function setAppVh() {
-    var h = (window.visualViewport && window.visualViewport.height)
+  var styleEl = document.getElementById('shell-size-style');
+  var RATIO = 941 / 1672; // width / height
+
+  function layoutShell() {
+    var vw = window.innerWidth || document.documentElement.clientWidth || 360;
+    var vh = (window.visualViewport && window.visualViewport.height)
       || window.innerHeight
       || document.documentElement.clientHeight
-      || 0;
-    if (h > 0) document.documentElement.style.setProperty('--app-vh', (h / 100) + 'px');
+      || 640;
+    if (!vw || !vh) return;
+    var w = Math.min(vw, 560, vh * RATIO);
+    var h = w / RATIO;
+    if (styleEl) {
+      styleEl.textContent = '#shell{width:' + w.toFixed(2) + 'px !important;'
+        + 'height:' + h.toFixed(2) + 'px !important;}';
+    }
   }
-  setAppVh();
-  window.addEventListener('resize', setAppVh);
-  window.addEventListener('orientationchange', setAppVh);
+
+  layoutShell();
+  window.addEventListener('resize', layoutShell);
+  window.addEventListener('orientationchange', function () {
+    setTimeout(layoutShell, 50);
+    setTimeout(layoutShell, 300);
+  });
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', setAppVh);
-    window.visualViewport.addEventListener('scroll', setAppVh);
+    window.visualViewport.addEventListener('resize', layoutShell);
+    window.visualViewport.addEventListener('scroll', layoutShell);
   }
+  document.addEventListener('DOMContentLoaded', layoutShell);
+  // Some in-app browsers (Telegram in particular) finish collapsing their
+  // own URL bar / chrome a moment AFTER the page reports loaded, silently
+  // resizing the visible area without firing a resize event reliably.
+  setTimeout(layoutShell, 300);
+  setTimeout(layoutShell, 1000);
+  setTimeout(layoutShell, 2000);
 })();
 </script>
-<link rel="stylesheet" href="styles.css?v=0.13.0">
 </head>
 <body>
 <div class="shell" id="shell">

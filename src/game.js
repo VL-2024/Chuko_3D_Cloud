@@ -4033,7 +4033,23 @@
       if (perfTick % 12 === 0) updatePerf();
     });
 
-    window.addEventListener('resize', () => engine.resize(), { passive: true });
+    // Our own layout can change size without a plain window "resize" event
+    // firing in every browser (in-app browsers in particular - see the
+    // #shell-size-style script in index.html), so engine.resize() also
+    // listens to the same set of triggers that script uses.
+    const scheduleEngineResize = () => requestAnimationFrame(() => engine.resize());
+    window.addEventListener('resize', scheduleEngineResize, { passive: true });
+    window.addEventListener('orientationchange', () => {
+      setTimeout(scheduleEngineResize, 60);
+      setTimeout(scheduleEngineResize, 320);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', scheduleEngineResize);
+      window.visualViewport.addEventListener('scroll', scheduleEngineResize);
+    }
+    setTimeout(scheduleEngineResize, 320);
+    setTimeout(scheduleEngineResize, 1050);
+    setTimeout(scheduleEngineResize, 2050);
     bindAimControls();
 
     updatePerf();
