@@ -43,7 +43,6 @@
     autoMenuTitle: document.getElementById('autoplay-menu-title'),
     autoCounts: document.getElementById('autoplay-counts'),
 
-    status: document.getElementById('status'),
     toast: document.getElementById('result-toast'),
     celebration: document.getElementById('celebration-layer'),
     knocked: document.getElementById('score-knocked'),
@@ -2080,8 +2079,14 @@
     clearCelebration();
   }
 
+  let statusClearTimer = null;
   function showStatus(text = '') {
-    if (ui.status) ui.status.textContent = text;
+    if (!ui.hint) return;
+    window.clearTimeout(statusClearTimer);
+    if (!text) { ui.hint.classList.remove('hint-status'); return; }
+    ui.hint.textContent = text;
+    ui.hint.classList.add('hint-status');
+    statusClearTimer = window.setTimeout(() => ui.hint.classList.remove('hint-status'), 4000);
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {

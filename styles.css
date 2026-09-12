@@ -67,19 +67,27 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 
 /* In-canvas gameplay hints (3D-specific) */
 .hint-bar{
-  position:absolute;z-index:9;left:16%;right:16%;top:92.85%;
-  display:flex;align-items:center;justify-content:center;gap:8px;
+  /* Anchored relative to .bottom-tools (30px tall + 6px gap) instead of an
+     independent top:%, so the two can never drift into overlapping - see
+     the Samsung Internet report where two independently-percentaged rows
+     collided on a short screen (654px-tall shell: only ~48px of budget
+     below the denom strip, not enough for two rows sized by their own
+     top:% position). Chaining off bottom-tools' own bottom-anchor instead
+     guarantees a fixed, constant gap between them at any shell size. */
+  position:absolute;z-index:9;left:14%;right:14%;bottom:calc(0.4% + 35px);
+  display:flex;align-items:center;justify-content:center;gap:5px;
   pointer-events:auto
 }
 .hint-text{
-  flex:1;min-width:0;text-align:center;font-size:clamp(10px,2.4vw,13px);font-weight:750;line-height:1.3;
+  flex:1;min-width:0;text-align:center;font-size:clamp(9px,2.1vw,11px);font-weight:750;line-height:1.15;
   color:rgba(255,255,255,.88);text-shadow:0 2px 6px rgba(0,0,0,.7);transition:opacity .2s ease
 }
+.hint-text.hint-status{color:#ffd45d}
 .hint-text.hint-collapsed{display:none}
 .hint-toggle{
-  flex:0 0 18px;width:18px;height:18px;padding:0;border-radius:50%;line-height:1;
+  flex:0 0 14px;width:14px;height:14px;padding:0;border-radius:50%;line-height:1;
   border:1px solid rgba(255,255,255,.30);background:rgba(3,12,16,.55);color:rgba(255,255,255,.75);
-  font-size:12px;cursor:pointer
+  font-size:10px;cursor:pointer
 }
 .aim-power{
   position:absolute;z-index:6;left:50%;top:60.5%;transform:translateX(-50%);
@@ -89,37 +97,37 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .aim-power strong{margin-left:5px;color:#e4ee3e;font-size:12px}
 
 .bottom-tools{
-  position:absolute;left:3.7%;right:3.7%;bottom:0.6%;
+  position:absolute;left:3.7%;right:3.7%;bottom:0.4%;height:30px;
   display:grid;grid-template-columns:minmax(0,60%) minmax(0,40%);
   align-items:center;gap:0;z-index:12;pointer-events:auto
 }
-.bottom-controls{min-width:0;display:flex;align-items:center;gap:7px}
+.bottom-controls{min-width:0;display:flex;align-items:center;gap:6px}
 .mode-switch{
-  position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:11px;overflow:hidden;
+  position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:10px;overflow:hidden;
   background:rgba(3,23,54,.90);box-shadow:0 4px 10px rgba(0,0,0,.14)
 }
 .mode-switch.hidden{display:none}
-.mode-switch button{border:0;min-width:58px;padding:6px 9px;background:transparent;color:#8196b2;font-weight:900;font-size:13px;line-height:1.1}
+.mode-switch button{border:0;min-width:50px;padding:5px 7px;background:transparent;color:#8196b2;font-weight:900;font-size:11px;line-height:1.1}
 .mode-switch button.active{background:#24499e;color:#dbe63c}
 .mode-switch button:disabled{opacity:.4}
 
 .info-wrap{position:relative}
 .info-btn{
-  min-width:74px;height:36px;padding:0 14px;border:1px solid rgba(117,163,211,.38);border-radius:13px;
-  background:rgba(3,23,54,.92);color:#dbe63c;font-size:14px;font-weight:950;line-height:1;cursor:pointer
+  min-width:64px;height:30px;padding:0 12px;border:1px solid rgba(117,163,211,.38);border-radius:11px;
+  background:rgba(3,23,54,.92);color:#dbe63c;font-size:12px;font-weight:950;line-height:1;cursor:pointer
 }
 .info-btn.active{border-color:rgba(219,230,60,.62);background:#24499e}
 
 .audio-toggle{
-  flex:0 0 42px;width:42px;height:36px;padding:0;display:grid;place-items:center;border-radius:13px;
-  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:20px;font-weight:950;line-height:1;cursor:pointer
+  flex:0 0 34px;width:34px;height:30px;padding:0;display:grid;place-items:center;border-radius:11px;
+  border:1px solid rgba(117,163,211,.38);background:rgba(3,23,54,.92);color:#7f91aa;font-size:17px;font-weight:950;line-height:1;cursor:pointer
 }
 .audio-toggle.on{border-color:rgba(219,230,60,.48);color:#dbe63c;background:#173d82}
 .audio-toggle:active{transform:translateY(1px)}
 
 .bottom-tools>.ticket-number{
   margin-left:0;max-width:none;width:100%;padding:0 0 0 8px;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(10px,2.2vw,13px);font-weight:800;line-height:36px
+  white-space:nowrap;text-align:right;color:#aebed3;font-size:clamp(9px,2.0vw,12px);font-weight:800;line-height:30px
 }
 
 .info-menu{
@@ -208,14 +216,14 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   100%{opacity:0;transform:translate3d(var(--dx,0px),calc(100% + 120px),0) rotate(var(--rot,720deg)) rotateY(var(--flip,540deg))}
 }
 
-.score{position:absolute;left:6.0%;right:6.0%;top:73.82%;height:6.62%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.score{position:absolute;left:6.0%;right:6.0%;top:70.82%;height:6.62%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .score-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(132,178,224,.30);background:linear-gradient(180deg,rgba(8,31,73,.96),rgba(4,20,48,.98));border-radius:18px}
 .score-label{font-size:clamp(8px,1.9vw,11px);color:#b8c6db}
 .score-value{font-size:clamp(18px,4.5vw,26px);font-weight:950;margin-top:2px;line-height:1}
 .score-value.accent{color:#dbe63c;font-size:clamp(14px,3.8vw,23px);white-space:nowrap}
 .score-value.gold{color:#ffd45d}
 
-.action-row{position:absolute;left:15.2%;right:15.2%;top:83.08%;height:5.62%;display:flex;align-items:stretch;gap:8px;z-index:10;pointer-events:auto}
+.action-row{position:absolute;left:15.2%;right:15.2%;top:80.08%;height:5.62%;display:flex;align-items:stretch;gap:8px;z-index:10;pointer-events:auto}
 .action{
   position:relative;flex:1 1 auto;min-width:0;height:100%;border-radius:26px;border:1px solid rgba(211,221,231,.40);
   background:linear-gradient(180deg,#2f4cbf 0%,#1b3590 46%,#0c1f5e 100%);color:#fff;font-size:clamp(16px,3.45vw,21px);
@@ -241,7 +249,7 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .autoplay-count{height:34px;border:1px solid rgba(117,163,211,.40);border-radius:11px;background:#183f84;color:#fff;font-size:12px;font-weight:950;cursor:pointer}
 .autoplay-count:hover,.autoplay-count:focus-visible{border-color:rgba(219,230,60,.65);color:#dbe63c}
 
-.denom-strip{position:absolute;left:16%;right:16%;top:89.35%;height:3.35%;display:flex;align-items:center;justify-content:center;gap:5px;z-index:9;pointer-events:auto}
+.denom-strip{position:absolute;left:16%;right:16%;top:86.6%;height:3.35%;display:flex;align-items:center;justify-content:center;gap:5px;z-index:9;pointer-events:auto}
 .denom-viewport{flex:1;min-width:0;overflow:hidden}
 .denom-track{display:flex;align-items:center;gap:6px;width:max-content;min-width:100%;justify-content:center;transition:transform .18s ease}
 .denom-option{
@@ -257,7 +265,9 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .denom-arrow.visible{visibility:visible;opacity:1;pointer-events:auto}
 .denom-arrow:disabled{visibility:hidden;opacity:0;pointer-events:none}
 
-.status{position:absolute;left:10%;right:10%;top:97.2%;text-align:center;min-height:14px;color:#dbe63c;font-size:10px}
+/* .status element removed - status/error messages now reuse the hint-bar
+   text (see showStatus() in game.js) instead of reserving their own row,
+   which is what caused the hint-bar/bottom-tools overlap on short screens. */
 .debug{position:absolute;left:2%;bottom:.4%;font-size:8px;opacity:.28;pointer-events:none}
 
 .fatal{
@@ -309,10 +319,10 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   .autoplay-btn{flex-basis:35%;min-width:80px;font-size:10px}
   .bottom-tools{left:2.5%;right:2.5%;grid-template-columns:minmax(0,60%) minmax(0,40%)}
   .bottom-controls{gap:4px}
-  .mode-switch button{min-width:44px;padding:5px 5px;font-size:11px}
-  .info-btn{min-width:64px;height:32px;padding:0 10px;font-size:12px}
-  .audio-toggle{flex-basis:36px;width:36px;height:32px;font-size:17px}
-  .bottom-tools>.ticket-number{font-size:10px;line-height:32px;padding-left:5px}
+  .mode-switch button{min-width:40px;padding:5px 4px;font-size:10px}
+  .info-btn{min-width:56px;height:30px;padding:0 8px;font-size:11px}
+  .audio-toggle{flex-basis:30px;width:30px;height:30px;font-size:15px}
+  .bottom-tools>.ticket-number{font-size:9px;line-height:30px;padding-left:5px}
   .autoplay-menu{width:176px}
   .denom-strip{left:12%;right:12%}
   .denom-option{min-width:52px;height:29px;padding:0 10px;font-size:10px}
