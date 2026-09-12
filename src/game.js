@@ -1511,6 +1511,13 @@
     return lang[key] || DICT.RU?.[key] || key;
   }
 
+  // tr() with {placeholder} substitution, e.g. trf('hintReady', {amount:'25 сом'}).
+  function trf(key, vars) {
+    let s = tr(key);
+    Object.keys(vars || {}).forEach(k => { s = s.split(`{${k}}`).join(vars[k]); });
+    return s;
+  }
+
   function formatMoney(value) {
     if (value == null || !Number.isFinite(Number(value))) return '—';
     return Number(value).toLocaleString('ru-RU');
@@ -2912,8 +2919,8 @@
     throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
     hideGameResult();
     ui.hint.textContent = gameState.ticketReady && gameState.ticket
-      ? `${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА`
-      : 'Выберите номинал и нажмите «Новая игра»';
+      ? trf('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` })
+      : tr('hintChooseDenom');
     ui.hint.style.opacity = '1';
     resetAimState();
     hideAimVisuals();
@@ -3333,8 +3340,8 @@
       if (strong) strong.textContent = `${Math.round(power * 100)}%`;
     }
     ui.hint.textContent = power < 0.08
-      ? 'Тяните САКА назад сильнее'
-      : 'Отпустите · влево пальцем = прицел вправо';
+      ? tr('hintPullHarder')
+      : tr('hintRelease');
   }
 
   function bindAimControls() {
@@ -3355,7 +3362,7 @@
       aimState.targetPoint = null;
       smoothedAimTarget = null;
       ui.canvas.setPointerCapture?.(e.pointerId);
-      ui.hint.textContent = 'Тяните назад: влево пальцем → прицел вправо · дальше — сила';
+      ui.hint.textContent = tr('hintDragStart');
       e.preventDefault();
     });
 
@@ -3398,7 +3405,9 @@
         aimState.targetPoint = defaultPoint;
         hideAimVisuals();
         if (ui.aimPower) ui.aimPower.hidden = true;
-        ui.hint.textContent = gameState.ticket ? `${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА` : 'Нажмите «Новая игра»';
+        ui.hint.textContent = gameState.ticket
+          ? trf('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` })
+          : tr('hintPressNewGame');
       }
       aimState.tapCandidate = false;
     });
@@ -3505,7 +3514,7 @@
       triggerRadius: Number(C.game?.sakaDeterministicContactRadius || 0.22)
     });
 
-    ui.hint.textContent = `Удар ${Math.round(power * 100)}% · ждём контакт и разлёт`;
+    ui.hint.textContent = trf('hintImpactWait', { power: Math.round(power * 100) });
 
     // Pile remains STATIC after launch; onBeforeRender releases it only when SAKA is almost touching it.
     pileReleasedForThrow = false;
@@ -3526,7 +3535,7 @@
     resetTimer = window.setTimeout(() => {
       throwState.active = false;
       showGameResult();
-      ui.hint.textContent = 'Результат зафиксирован · нажмите «Новая игра»';
+      ui.hint.textContent = tr('hintResultLocked');
     }, C.throw.settleMs);
   }
 
@@ -3724,8 +3733,8 @@
     }
 
     ui.hint.textContent = affected
-      ? `Контакт · затронуто ${affected} чүкө`
-      : 'Контакт · Havok';
+      ? trf('hintContactAffected', { n: affected })
+      : tr('hintContactHavok');
   }
 
   function updateBodyCount() {
