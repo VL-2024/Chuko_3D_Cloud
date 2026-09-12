@@ -386,7 +386,7 @@
 
   async function loadGlbModels() {
     if (!BABYLON.SceneLoader) throw new Error('Babylon GLTF loader не загрузился');
-    ui.badge.textContent = 'HAVOK · GLB…';
+    if (ui.badge) ui.badge.textContent = 'HAVOK · GLB…';
     const [chuko, khan, sakaModel] = await Promise.all([
       loadGlbTemplate('chuko', C.glb.chukoFile),
       loadGlbTemplate('khan', C.glb.khanFile),
@@ -396,7 +396,7 @@
     modelBank.khan = khan;
     modelBank.saka = sakaModel;
     modelBank.ready = true;
-    ui.badge.textContent = 'HAVOK · GLB READY';
+    if (ui.badge) ui.badge.textContent = 'HAVOK · GLB READY';
     console.info('[CHUKO 0.12.3] GLB bounds', {
       chuko: chuko.bounds.size,
       khan: khan.bounds.size,
@@ -749,7 +749,7 @@
     const hk = await HavokPhysics();
     const plugin = new BABYLON.HavokPlugin(true, hk);
     scene.enablePhysics(new BABYLON.Vector3(0, C.physics.gravity, 0), plugin);
-    ui.badge.textContent = 'HAVOK · READY';
+    if (ui.badge) ui.badge.textContent = 'HAVOK · READY';
   }
 
   function material(name, color, roughness = 0.78, metallic = 0.0) {
@@ -1518,6 +1518,26 @@
     return s;
   }
 
+  // The hint bar remembers WHAT it is currently showing (a key + its
+  // variables, not the resolved text), so a language switch can instantly
+  // re-render whatever is on screen right now instead of waiting for the
+  // next natural game-flow event (throw, new round, etc.) to overwrite it.
+  let lastHintKey = null, lastHintVars = null;
+  let lastStatusKey = null, lastStatusVars = null;
+  let statusActive = false;
+
+  function setHint(key, vars) {
+    lastHintKey = key;
+    lastHintVars = vars || null;
+    if (ui.hint) ui.hint.textContent = trf(key, vars);
+  }
+
+  function refreshHintLanguage() {
+    if (!ui.hint) return;
+    if (statusActive && lastStatusKey) ui.hint.textContent = trf(lastStatusKey, lastStatusVars);
+    else if (lastHintKey) ui.hint.textContent = trf(lastHintKey, lastHintVars);
+  }
+
   function formatMoney(value) {
     if (value == null || !Number.isFinite(Number(value))) return '—';
     return Number(value).toLocaleString('ru-RU');
@@ -1535,6 +1555,7 @@
     renderAudioControls();
     renderTicketNumber();
     renderPayoutGrid();
+    refreshHintLanguage();
     renderState();
   }
 
@@ -2090,13 +2111,14 @@
   }
 
   let statusClearTimer = null;
-  function showStatus(text = '') {
+  function showStatus(key, vars) {
     if (!ui.hint) return;
     window.clearTimeout(statusClearTimer);
-    if (!text) { ui.hint.classList.remove('hint-status'); return; }
-    ui.hint.textContent = text;
+    if (!key) { statusActive = false; ui.hint.classList.remove('hint-status'); return; }
+    lastStatusKey = key; lastStatusVars = vars || null; statusActive = true;
+    ui.hint.textContent = trf(key, vars);
     ui.hint.classList.add('hint-status');
-    statusClearTimer = window.setTimeout(() => ui.hint.classList.remove('hint-status'), 4000);
+    statusClearTimer = window.setTimeout(() => { statusActive = false; ui.hint.classList.remove('hint-status'); }, 4000);
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
@@ -2647,7 +2669,7 @@
     } catch (err) {
       console.error(err);
       gameState.phase = 'error';
-      showStatus(tr('balanceError'));
+      showStatus('balanceError');
       renderState();
       LMS?.emit?.('X2_GAME_ERROR',{stage:'balance',code:err.code||'BALANCE_ERROR',message:err.message||String(err)});
     }
@@ -2703,7 +2725,7 @@
       gameState.ticketReady = false;
       gameState.ticket = null;
       const code = err.code || 'GAME_START_ERROR';
-      showStatus(code === 'INSUFFICIENT_FUNDS' ? tr('insufficient') : code === 'SESSION_EXPIRED' ? tr('sessionEnded') : tr('startError'));
+      showStatus(code === 'INSUFFICIENT_FUNDS' ? 'insufficient' : code === 'SESSION_EXPIRED' ? 'sessionEnded' : 'startError');
       if (autoPlay.active) { clearAutoTimers(); finishAutoPlay(); }
       renderState();
       LMS?.emit?.('X2_GAME_ERROR',{stage:'newGame',code,message:err.message||String(err)});
@@ -2918,9 +2940,11 @@
     roundSeed = roundIndex * 7919 + 17;
     throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
     hideGameResult();
-    ui.hint.textContent = gameState.ticketReady && gameState.ticket
-      ? trf('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` })
-      : tr('hintChooseDenom');
+    if (gameState.ticketReady && gameState.ticket) {
+      setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+    } else {
+      setHint('hintChooseDenom');
+    }
     ui.hint.style.opacity = '1';
     resetAimState();
     hideAimVisuals();
@@ -3339,9 +3363,8 @@
       const strong = ui.aimPower.querySelector('strong');
       if (strong) strong.textContent = `${Math.round(power * 100)}%`;
     }
-    ui.hint.textContent = power < 0.08
-      ? tr('hintPullHarder')
-      : tr('hintRelease');
+    if (power < 0.08) setHint('hintPullHarder');
+    else setHint('hintRelease');
   }
 
   function bindAimControls() {
@@ -3362,7 +3385,7 @@
       aimState.targetPoint = null;
       smoothedAimTarget = null;
       ui.canvas.setPointerCapture?.(e.pointerId);
-      ui.hint.textContent = tr('hintDragStart');
+      setHint('hintDragStart');
       e.preventDefault();
     });
 
@@ -3405,9 +3428,11 @@
         aimState.targetPoint = defaultPoint;
         hideAimVisuals();
         if (ui.aimPower) ui.aimPower.hidden = true;
-        ui.hint.textContent = gameState.ticket
-          ? trf('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` })
-          : tr('hintPressNewGame');
+        if (gameState.ticket) {
+          setHint('hintReady', { amount: `${gameState.denomination} ${gameState.currencyDisplay}` });
+        } else {
+          setHint('hintPressNewGame');
+        }
       }
       aimState.tapCandidate = false;
     });
@@ -3514,7 +3539,7 @@
       triggerRadius: Number(C.game?.sakaDeterministicContactRadius || 0.22)
     });
 
-    ui.hint.textContent = trf('hintImpactWait', { power: Math.round(power * 100) });
+    setHint('hintImpactWait', { power: Math.round(power * 100) });
 
     // Pile remains STATIC after launch; onBeforeRender releases it only when SAKA is almost touching it.
     pileReleasedForThrow = false;
@@ -3535,7 +3560,7 @@
     resetTimer = window.setTimeout(() => {
       throwState.active = false;
       showGameResult();
-      ui.hint.textContent = tr('hintResultLocked');
+      setHint('hintResultLocked');
     }, C.throw.settleMs);
   }
 
@@ -3732,9 +3757,8 @@
       }
     }
 
-    ui.hint.textContent = affected
-      ? trf('hintContactAffected', { n: affected })
-      : tr('hintContactHavok');
+    if (affected) setHint('hintContactAffected', { n: affected });
+    else setHint('hintContactHavok');
   }
 
   function updateBodyCount() {

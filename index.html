@@ -10,7 +10,7 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>ЧҮКӨ Modern 3D — LMS/scenarios 0.13</title>
-<link rel="stylesheet" href="styles.css?v=0.13.10">
+<link rel="stylesheet" href="styles.css?v=0.13.11">
 <style id="shell-size-style"></style>
 <script>
 // "не помогло": switching the CSS calc from `dvh` to a JS-driven `vh`
@@ -122,25 +122,25 @@
 
   <div class="ui-layer">
     <div class="topbar">
-      <div class="brand"><span class="x2">X2</span> <span class="loto">LOTO</span></div>
+      <div class="brand-group">
+        <img class="brand-logo" src="assets/logo.svg" alt="X2 LOTO">
+        <div class="game-title-inline" data-i18n="title">ЧҮКӨ</div>
+      </div>
       <div class="wallet">
         <div class="wallet-meta"><div class="small-label" data-i18n="balance">Баланс</div><div class="amount" id="balance-value">—</div></div>
         <button class="deposit" id="deposit-btn" aria-label="deposit">+</button>
       </div>
     </div>
 
-    <!-- DEBUG ONLY: manual language switch. Production language comes from
-         the LMS (see initializeGameIntegration()); this lets QA/testers
-         flip RU/KG without touching LMS settings while we decide whether
-         players get an in-game language toggle too. Safe to delete this
-         div (and its CSS/JS wiring) once that's decided. -->
-    <div class="lang-switch" id="lang-switch" title="Debug: язык">
+    <!-- Player-facing language switch: confirmed behaviour is the game
+         starts in whatever language the LMS provides (see
+         initializeGameIntegration()), and the player can change it anytime
+         from here - not just a QA/debug affordance. Current styling is a
+         quick corner toggle for testing all languages easily; feel free to
+         ask for a more polished placement/design once the language list is
+         final. -->
+    <div class="lang-switch" id="lang-switch" title="Язык / Language">
       <button data-lang="RU" type="button">RU</button><button data-lang="EN" type="button">EN</button><button data-lang="KG" type="button">KG</button><button data-lang="ZH" type="button">ZH</button>
-    </div>
-
-    <div class="titleblock">
-      <div class="game-title" data-i18n="title">ЧҮКӨ</div>
-      <div class="engine-badge" id="physicsBadge">HAVOK · загрузка…</div>
     </div>
 
     <section class="aim-power" id="aimPower" hidden>СИЛА <strong>0%</strong></section>
@@ -224,159 +224,6 @@
 
 
 
-    <button id="tuneBtn" class="tune-btn" type="button" aria-expanded="false">⚙</button>
-    <aside id="tunePanel" class="tune-panel" hidden aria-label="Настройка композиции">
-      <div class="tune-head">
-        <div>
-          <strong>Подгонка экрана</strong>
-          <span>Значения сохраняются на этом устройстве</span>
-        </div>
-        <button id="tuneCloseBtn" type="button" class="tune-close">×</button>
-      </div>
-
-      <section class="tune-group">
-        <h3>ФОН И ПОЛЕ</h3>
-        <label class="tune-row">
-          <span>Размер поля <output data-out="fieldWidth"></output></span>
-          <input type="range" min="74" max="102" step="1" data-tune="fieldWidth">
-        </label>
-        <label class="tune-row">
-          <span>Поле выше / ниже <output data-out="fieldBottom"></output></span>
-          <input type="range" min="200" max="650" step="2" data-tune="fieldBottom">
-        </label>
-        <label class="tune-row">
-          <span>Поле влево / вправо <output data-out="fieldX"></output></span>
-          <input type="range" min="-88" max="92" step="2" data-tune="fieldX">
-        </label>
-        <label class="tune-row">
-          <span>Масштаб фона <output data-out="bgScale"></output></span>
-          <input type="range" min="0.83" max="1.19" step="0.01" data-tune="bgScale">
-        </label>
-        <label class="tune-row">
-          <span>Фон выше / ниже <output data-out="bgY"></output></span>
-          <input type="range" min="-184" max="96" step="2" data-tune="bgY">
-        </label>
-        <label class="tune-row">
-          <span>Фон влево / вправо <output data-out="bgX"></output></span>
-          <input type="range" min="-100" max="100" step="2" data-tune="bgX">
-        </label>
-      </section>
-
-      <section class="tune-group">
-        <h3>КУЧКА ЧҮКӨ</h3>
-        <label class="tune-row">
-          <span>Кучка влево / вправо <output data-out="pileX"></output></span>
-          <input type="range" min="-0.90" max="0.70" step="0.02" data-tune="pileX">
-        </label>
-        <label class="tune-row">
-          <span>Кучка вперёд / назад <output data-out="pileZ"></output></span>
-          <input type="range" min="-3.00" max="-0.60" step="0.02" data-tune="pileZ">
-        </label>
-        <label class="tune-row">
-          <span>Ширина кучки <output data-out="spreadX"></output></span>
-          <input type="range" min="0.21" max="0.83" step="0.02" data-tune="spreadX">
-        </label>
-        <label class="tune-row">
-          <span>Глубина кучки <output data-out="spreadZ"></output></span>
-          <input type="range" min="0.54" max="1.10" step="0.02" data-tune="spreadZ">
-        </label>
-        <label class="tune-row">
-          <span>Размер чүкö <output data-out="chukoScale"></output></span>
-          <input type="range" min="0.37" max="0.87" step="0.02" data-tune="chukoScale">
-        </label>
-      </section>
-
-      <section class="tune-group">
-        <h3>ЦЕНТР РАЗЛЁТА</h3>
-        <p style="margin:0 0 8px;font-size:9px;opacity:.62;line-height:1.4">
-          Точка, вокруг которой считается разлёт выбитых/невыбитых чүкö.
-          Бросьте САКА и подвиньте, если кольцо оставшихся чүкö смещено
-          относительно белой линии на ковре.
-        </p>
-        <label class="tune-row">
-          <span>Влево / вправо <output data-out="scatterPivotX"></output></span>
-          <input type="range" min="-0.90" max="0.70" step="0.02" data-tune="scatterPivotX">
-        </label>
-        <label class="tune-row">
-          <span>Вперёд / назад <output data-out="scatterPivotZ"></output></span>
-          <input type="range" min="-3.00" max="-0.60" step="0.02" data-tune="scatterPivotZ">
-        </label>
-      </section>
-
-      <section class="tune-group">
-        <h3>3D КАМЕРА</h3>
-        <label class="tune-row">
-          <span>Общий размер 3D <output data-out="cameraRadius"></output></span>
-          <input type="range" min="6.80" max="10.00" step="0.05" data-tune="cameraRadius">
-        </label>
-        <label class="tune-row">
-          <span>3D влево / вправо <output data-out="cameraTargetX"></output></span>
-          <input type="range" min="-0.84" max="0.76" step="0.02" data-tune="cameraTargetX">
-        </label>
-        <label class="tune-row">
-          <span>3D вперёд / назад <output data-out="cameraTargetZ"></output></span>
-          <input type="range" min="-0.54" max="1.06" step="0.02" data-tune="cameraTargetZ">
-        </label>
-      </section>
-
-      <section class="tune-group">
-        <h3>GLB МОДЕЛИ</h3>
-        <label class="tune-row">
-          <span>Размер GLB чүкө <output data-out="chukoModelScale"></output></span>
-          <input type="range" min="0.94" max="1.50" step="0.02" data-tune="chukoModelScale">
-        </label>
-        <label class="tune-row">
-          <span>Высота GLB чүкө <output data-out="chukoModelY"></output></span>
-          <input type="range" min="-0.30" max="0.02" step="0.01" data-tune="chukoModelY">
-        </label>
-        <label class="tune-row">
-          <span>Размер GLB ХАН <output data-out="khanModelScale"></output></span>
-          <input type="range" min="0.70" max="1.26" step="0.02" data-tune="khanModelScale">
-        </label>
-        <label class="tune-row">
-          <span>Высота GLB ХАН <output data-out="khanModelY"></output></span>
-          <input type="range" min="-0.31" max="0.01" step="0.01" data-tune="khanModelY">
-        </label>
-        <label class="tune-row">
-          <span>Размер GLB САКА <output data-out="sakaModelScale"></output></span>
-          <input type="range" min="0.50" max="1.06" step="0.02" data-tune="sakaModelScale">
-        </label>
-        <label class="tune-row">
-          <span>Высота GLB САКА <output data-out="sakaModelY"></output></span>
-          <input type="range" min="-0.20" max="0.20" step="0.01" data-tune="sakaModelY">
-        </label>
-        <label class="tune-row">
-          <span>Поворот GLB САКА Y <output data-out="sakaModelYawDeg"></output></span>
-          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelYawDeg">
-        </label>
-        <label class="tune-row">
-          <span>Наклон GLB САКА X <output data-out="sakaModelPitchDeg"></output></span>
-          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelPitchDeg">
-        </label>
-        <label class="tune-row">
-          <span>Завал GLB САКА Z <output data-out="sakaModelRollDeg"></output></span>
-          <input type="range" min="-180" max="180" step="5" data-tune="sakaModelRollDeg">
-        </label>
-      </section>
-
-      <section class="tune-group">
-        <h3>САКА</h3>
-        <label class="tune-row">
-          <span>САКА влево / вправо <output data-out="sakaX"></output></span>
-          <input type="range" min="-1.11" max="0.79" step="0.02" data-tune="sakaX">
-        </label>
-        <label class="tune-row">
-          <span>САКА ближе / дальше <output data-out="sakaZ"></output></span>
-          <input type="range" min="2.00" max="3.70" step="0.02" data-tune="sakaZ">
-        </label>
-      </section>
-
-      <div class="tune-actions">
-        <button id="tuneDefaultsBtn" type="button">СБРОСИТЬ</button>
-        <button id="tuneCopyBtn" type="button">КОПИРОВАТЬ ПАРАМЕТРЫ</button>
-      </div>
-      <textarea id="tuneOutput" class="tune-output" readonly rows="5" aria-label="Текущие параметры"></textarea>
-    </aside>
 
     <section class="perf" id="perfPanel" aria-live="polite">
       <div><span>FPS</span><strong id="fps">—</strong></div>
@@ -390,7 +237,7 @@
       <span id="fatalText"></span>
     </div>
 
-    <div class="debug">v0.13.10 · Babylon.js 9.25 + Havok · LMS UI из v20.61</div>
+    <div class="debug">v0.13.11 · Babylon.js 9.25 + Havok · LMS UI из v20.61</div>
     <div id="viewportDebug" style="position:fixed;left:4px;top:4px;z-index:99999;padding:4px 7px;background:rgba(0,0,0,.72);color:#0f0;font:9px/1.35 ui-monospace,Menlo,Consolas,monospace;white-space:pre;pointer-events:none;"></div>
   </div>
 </div>
@@ -398,11 +245,11 @@
 <script src="https://cdn.jsdelivr.net/npm/babylonjs@9.25.0/babylon.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/babylonjs-loaders@9.25.0/babylonjs.loaders.min.js"></script>
 <script src="https://cdn.babylonjs.com/havok/HavokPhysics_umd.js"></script>
-<script src="src/config.js?v=0.13.10"></script>
-<script src="lms-config.js?v=0.13.10"></script>
-<script src="src/scenario-config.js?v=0.13.10"></script>
-<script src="lms-adapter.js?v=0.13.10"></script>
-<script src="src/i18n.js?v=0.13.10"></script>
-<script src="src/game.js?v=0.13.10"></script>
+<script src="src/config.js?v=0.13.11"></script>
+<script src="lms-config.js?v=0.13.11"></script>
+<script src="src/scenario-config.js?v=0.13.11"></script>
+<script src="lms-adapter.js?v=0.13.11"></script>
+<script src="src/i18n.js?v=0.13.11"></script>
+<script src="src/game.js?v=0.13.11"></script>
 </body>
 </html>
