@@ -57,6 +57,13 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   border-radius:18px;display:flex;align-items:center;padding:0 10px;gap:8px;
   box-shadow:inset 0 0 22px rgba(15,73,140,.18);width:42%;margin-left:auto
 }
+.lang-switch{
+  position:absolute;right:2.2%;top:7.6%;z-index:8;display:flex;
+  border:1px solid rgba(117,163,211,.40);border-radius:8px;overflow:hidden;
+  background:rgba(3,23,54,.85)
+}
+.lang-switch button{border:0;min-width:28px;padding:3px 6px;background:transparent;color:#8196b2;font-weight:900;font-size:9px;line-height:1.2}
+.lang-switch button.active{background:#24499e;color:#dbe63c}
 .wallet-meta{min-width:0;flex:1}.small-label{font-size:clamp(9px,2.2vw,12px);opacity:.86;line-height:1.08}
 .amount{font-weight:850;font-size:clamp(12px,3.25vw,19px);white-space:nowrap}
 .deposit{width:36px;height:36px;border-radius:50%;border:0;background:#b9db00;color:#fff;font-size:29px;line-height:1;display:grid;place-items:center;cursor:pointer}
@@ -98,10 +105,10 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 
 .bottom-tools{
   position:absolute;left:3.7%;right:3.7%;bottom:0.4%;height:30px;
-  display:grid;grid-template-columns:minmax(0,60%) minmax(0,40%);
+  display:grid;grid-template-columns:minmax(0,76%) minmax(0,24%);
   align-items:center;gap:0;z-index:12;pointer-events:auto
 }
-.bottom-controls{min-width:0;display:flex;align-items:center;gap:6px}
+.bottom-controls{min-width:0;display:flex;align-items:center;gap:5px}
 .mode-switch{
   position:relative;display:flex;border:1px solid rgba(117,163,211,.34);border-radius:10px;overflow:hidden;
   background:rgba(3,23,54,.90);box-shadow:0 4px 10px rgba(0,0,0,.14)
@@ -216,14 +223,20 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   100%{opacity:0;transform:translate3d(var(--dx,0px),calc(100% + 120px),0) rotate(var(--rot,720deg)) rotateY(var(--flip,540deg))}
 }
 
-.score{position:absolute;left:6.0%;right:6.0%;top:70.82%;height:6.62%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.score{position:absolute;left:6.0%;right:6.0%;top:77.9%;height:6.2%;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .score-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid rgba(132,178,224,.30);background:linear-gradient(180deg,rgba(8,31,73,.96),rgba(4,20,48,.98));border-radius:18px}
 .score-label{font-size:clamp(8px,1.9vw,11px);color:#b8c6db}
 .score-value{font-size:clamp(18px,4.5vw,26px);font-weight:950;margin-top:2px;line-height:1}
 .score-value.accent{color:#dbe63c;font-size:clamp(14px,3.8vw,23px);white-space:nowrap}
 .score-value.gold{color:#ffd45d}
 
-.action-row{position:absolute;left:15.2%;right:15.2%;top:80.08%;height:5.62%;display:flex;align-items:stretch;gap:8px;z-index:10;pointer-events:auto}
+.action-row{position:absolute;left:8%;right:8%;top:85.0%;height:5.8%;display:flex;align-items:stretch;gap:6px;z-index:10;pointer-events:auto}
+.denom-select{
+  flex:0 0 23%;min-width:64px;height:100%;padding:0 6px;border-radius:20px;
+  border:1px solid rgba(117,163,211,.42);background:rgba(3,23,54,.92);color:#dbe63c;
+  font-size:clamp(13px,2.8vw,17px);font-weight:950;text-align:center;text-align-last:center;
+  -webkit-appearance:none;appearance:none;cursor:pointer
+}
 .action{
   position:relative;flex:1 1 auto;min-width:0;height:100%;border-radius:26px;border:1px solid rgba(211,221,231,.40);
   background:linear-gradient(180deg,#2f4cbf 0%,#1b3590 46%,#0c1f5e 100%);color:#fff;font-size:clamp(16px,3.45vw,21px);
@@ -231,9 +244,9 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 }
 .action:disabled{opacity:.57;cursor:default}
 .autoplay-btn{
-  position:relative;flex:0 0 34%;min-width:86px;height:100%;padding:0 8px;border-radius:24px;
+  position:relative;flex:0 0 30%;min-width:86px;height:100%;padding:0 6px;border-radius:24px;
   border:1px solid rgba(219,230,60,.42);background:linear-gradient(180deg,rgba(35,75,154,.98),rgba(17,46,112,.98));
-  color:#dbe63c;font-size:clamp(11px,2.45vw,15px);line-height:1.05;font-weight:950;white-space:nowrap;
+  color:#dbe63c;font-size:clamp(16px,3.45vw,21px);line-height:1;font-weight:950;white-space:nowrap;
   box-shadow:inset 0 0 0 2px rgba(255,255,255,.025),0 8px 18px rgba(0,0,0,.22);cursor:pointer
 }
 .autoplay-btn.active{border-color:rgba(255,211,89,.72);background:linear-gradient(180deg,#6b5311,#3d2e08);color:#ffd45d}
@@ -248,22 +261,6 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 .autoplay-counts{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
 .autoplay-count{height:34px;border:1px solid rgba(117,163,211,.40);border-radius:11px;background:#183f84;color:#fff;font-size:12px;font-weight:950;cursor:pointer}
 .autoplay-count:hover,.autoplay-count:focus-visible{border-color:rgba(219,230,60,.65);color:#dbe63c}
-
-.denom-strip{position:absolute;left:16%;right:16%;top:86.6%;height:3.35%;display:flex;align-items:center;justify-content:center;gap:5px;z-index:9;pointer-events:auto}
-.denom-viewport{flex:1;min-width:0;overflow:hidden}
-.denom-track{display:flex;align-items:center;gap:6px;width:max-content;min-width:100%;justify-content:center;transition:transform .18s ease}
-.denom-option{
-  flex:0 0 auto;min-width:54px;height:30px;padding:0 12px;border:1px solid rgba(117,163,211,.44);border-radius:11px;
-  background:rgba(3,23,54,.92);color:#aebed3;font-size:11px;line-height:1;font-weight:950;box-shadow:0 4px 10px rgba(0,0,0,.15);cursor:pointer
-}
-.denom-option.active{border-color:rgba(219,230,60,.65);background:#24499e;color:#dbe63c;box-shadow:0 0 0 1px rgba(219,230,60,.12),0 4px 10px rgba(0,0,0,.16)}
-.denom-option:disabled{opacity:.55;cursor:default}
-.denom-arrow{
-  flex:0 0 25px;width:25px;height:30px;padding:0;border:0;border-radius:10px;background:rgba(3,23,54,.92);color:#dbe63c;
-  font-size:22px;line-height:1;font-weight:900;visibility:hidden;opacity:0;pointer-events:none;transition:opacity .15s ease;cursor:pointer
-}
-.denom-arrow.visible{visibility:visible;opacity:1;pointer-events:auto}
-.denom-arrow:disabled{visibility:hidden;opacity:0;pointer-events:none}
 
 /* .status element removed - status/error messages now reuse the hint-bar
    text (see showStatus() in game.js) instead of reserving their own row,
@@ -315,18 +312,16 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
 @media(max-width:380px){
   .wallet{width:44%;padding:0 7px}
   .deposit{width:31px;height:31px}
-  .action-row{left:10%;right:10%;gap:6px}
-  .autoplay-btn{flex-basis:35%;min-width:80px;font-size:10px}
-  .bottom-tools{left:2.5%;right:2.5%;grid-template-columns:minmax(0,60%) minmax(0,40%)}
+  .action-row{left:6%;right:6%;gap:5px}
+  .denom-select{flex-basis:26%;min-width:56px;font-size:13px}
+  .autoplay-btn{flex-basis:32%;min-width:76px}
+  .bottom-tools{left:2.5%;right:2.5%;grid-template-columns:minmax(0,76%) minmax(0,24%)}
   .bottom-controls{gap:4px}
   .mode-switch button{min-width:40px;padding:5px 4px;font-size:10px}
   .info-btn{min-width:56px;height:30px;padding:0 8px;font-size:11px}
   .audio-toggle{flex-basis:30px;width:30px;height:30px;font-size:15px}
   .bottom-tools>.ticket-number{font-size:9px;line-height:30px;padding-left:5px}
   .autoplay-menu{width:176px}
-  .denom-strip{left:12%;right:12%}
-  .denom-option{min-width:52px;height:29px;padding:0 10px;font-size:10px}
-  .denom-arrow{height:29px}
 }
 
 @media(orientation:landscape) and (max-height:620px){

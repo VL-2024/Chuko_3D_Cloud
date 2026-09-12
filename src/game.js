@@ -30,12 +30,9 @@
     balance: document.getElementById('balance-value'),
     deposit: document.getElementById('deposit-btn'),
     modeSwitch: document.getElementById('mode-switch'),
+    langSwitch: document.getElementById('lang-switch'),
 
-    denomStrip: document.getElementById('denom-strip'),
-    denomViewport: document.getElementById('denom-viewport'),
-    denomTrack: document.getElementById('denom-track'),
-    denomPrev: document.getElementById('denom-prev'),
-    denomNext: document.getElementById('denom-next'),
+    denomSelect: document.getElementById('denom-select'),
 
     action: document.getElementById('action-btn'),
     autoPlay: document.getElementById('autoplay-btn'),
@@ -239,7 +236,7 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 420,
+    fieldBottom: 312,
     fieldX: 2,
     bgScale: 1.01,
     bgX: 16,
@@ -254,7 +251,7 @@
     cameraRadius: 8.40,
     cameraTargetX: -0.04,
     cameraTargetZ: 0.26,
-    sakaX: -0.16,
+    sakaX: 0.01,
     sakaZ: 2.85,
     chukoModelScale: 1.22,
     chukoModelY: -0.14,
@@ -1527,10 +1524,18 @@
     document.documentElement.lang = gameState.language === 'KG' ? 'ky' : 'ru';
     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
     renderModeSwitch();
+    renderLangSwitch();
     renderAudioControls();
     renderTicketNumber();
     renderPayoutGrid();
     renderState();
+  }
+
+  // DEBUG ONLY - see the lang-switch markup comment in index.html.
+  function renderLangSwitch() {
+    ui.langSwitch?.querySelectorAll('button').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === gameState.language);
+    });
   }
 
   // --- Audio (ported from CHUKO v20.61) -------------------------------
@@ -1806,52 +1811,27 @@
     ui.ticketNumber.title = value === '—' || value === '…' ? tr('ticket') : `${tr('ticket')} № ${value}`;
   }
 
-  // --- Denomination strip (track + arrows) -----------------------------
-  function updateDenominationArrows() {
-    if (!ui.denomViewport || !ui.denomPrev || !ui.denomNext) return;
-    const maxScroll = Math.max(0, ui.denomViewport.scrollWidth - ui.denomViewport.clientWidth);
-    const overflowing = maxScroll > 2;
-    const left = ui.denomViewport.scrollLeft;
-    ui.denomPrev.classList.toggle('visible', overflowing && left > 2);
-    ui.denomNext.classList.toggle('visible', overflowing && left < maxScroll - 2);
-    ui.denomPrev.disabled = !overflowing || left <= 2;
-    ui.denomNext.disabled = !overflowing || left >= maxScroll - 2;
-  }
-
-  function centerActiveDenomination() {
-    if (!ui.denomViewport || !ui.denomTrack) return;
-    const active = ui.denomTrack.querySelector('.denom-option.active');
-    if (!active) return;
-    const target = active.offsetLeft - (ui.denomViewport.clientWidth - active.offsetWidth) / 2;
-    const maxScroll = Math.max(0, ui.denomViewport.scrollWidth - ui.denomViewport.clientWidth);
-    ui.denomViewport.scrollLeft = Math.max(0, Math.min(maxScroll, target));
-    updateDenominationArrows();
-  }
-
-  function renderDenominationButtons({ centerActive = false } = {}) {
-    if (!ui.denomTrack) return;
-    ui.denomTrack.innerHTML = '';
+  // --- Denomination select (dropdown, left of the action button) -------
+  function renderDenominationButtons() {
+    if (!ui.denomSelect) return;
     const enabled = ['idle', 'settled'].includes(gameState.phase) && !gameState.busy && !autoPlay.active;
     const values = [...new Set((gameState.denominations || []).map(Number).filter(v => Number.isFinite(v) && v > 0))];
-    values.forEach(value => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'denom-option' + (Number(value) === Number(gameState.denomination) ? ' active' : '');
-      b.textContent = formatMoney(value);
-      b.disabled = !enabled;
-      b.addEventListener('click', () => {
-        if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;
-        gameState.denomination = value;
-        gameState.ticket = null;
-        gameState.ticketReady = false;
-        autoPlay.selected = null;
-        hideGameResult();
-        renderState();
-        LMS?.emit?.('X2_GAME_DENOMINATION_CHANGED', { gameId: LMS_CFG.gameId || 'CHUKO', denomination: value, currency: gameState.currency, mode: gameState.mode });
+    const current = String(gameState.denomination);
+
+    // Rebuild only when the set of values actually changed - avoids
+    // resetting the native picker's open state on every render() call.
+    const existing = [...ui.denomSelect.options].map(o => o.value);
+    if (existing.join(',') !== values.map(String).join(',')) {
+      ui.denomSelect.innerHTML = '';
+      values.forEach(value => {
+        const opt = document.createElement('option');
+        opt.value = String(value);
+        opt.textContent = formatMoney(value);
+        ui.denomSelect.appendChild(opt);
       });
-      ui.denomTrack.appendChild(b);
-    });
-    requestAnimationFrame(() => { if (centerActive) centerActiveDenomination(); else updateDenominationArrows(); });
+    }
+    ui.denomSelect.value = current;
+    ui.denomSelect.disabled = !enabled;
   }
 
   function renderModeSwitch() {
@@ -2807,17 +2787,26 @@
       denomination:gameState.denomination, language:gameState.language, balance:gameState.balance
     }));
 
-    const scrollDenominations = direction => {
-      if (!ui.denomViewport) return;
-      const option = ui.denomTrack?.querySelector('.denom-option');
-      const step = (option?.offsetWidth || 54) + 6;
-      ui.denomViewport.scrollBy({ left: direction * step * 2, behavior: 'smooth' });
-      setTimeout(updateDenominationArrows, 220);
-    };
-    ui.denomPrev?.addEventListener('click', () => scrollDenominations(-1));
-    ui.denomNext?.addEventListener('click', () => scrollDenominations(1));
-    ui.denomViewport?.addEventListener('scroll', updateDenominationArrows, { passive:true });
-    window.addEventListener('resize', () => requestAnimationFrame(updateDenominationArrows));
+    ui.denomSelect?.addEventListener('change', () => {
+      if (!['idle', 'settled'].includes(gameState.phase) || gameState.busy) return;
+      const value = Number(ui.denomSelect.value);
+      if (!Number.isFinite(value) || value <= 0) return;
+      gameState.denomination = value;
+      gameState.ticket = null;
+      gameState.ticketReady = false;
+      autoPlay.selected = null;
+      hideGameResult();
+      renderState();
+      LMS?.emit?.('X2_GAME_DENOMINATION_CHANGED', { gameId: LMS_CFG.gameId || 'CHUKO', denomination: value, currency: gameState.currency, mode: gameState.mode });
+    });
+
+    // DEBUG ONLY - see the lang-switch markup comment in index.html.
+    ui.langSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const lang = b.dataset.lang === 'KG' ? 'KG' : 'RU';
+      if (lang === gameState.language) return;
+      gameState.language = lang;
+      applyTranslations();
+    }));
 
     ui.modeSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => setGameMode(b.dataset.mode)));
 
