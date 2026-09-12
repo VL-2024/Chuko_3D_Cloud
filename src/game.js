@@ -239,7 +239,7 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 414,
+    fieldBottom: 312,
     fieldX: 2,
     bgScale: 1.01,
     bgX: 0,
