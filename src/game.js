@@ -1521,7 +1521,7 @@
   }
 
   function applyTranslations() {
-    document.documentElement.lang = gameState.language === 'KG' ? 'ky' : 'ru';
+    document.documentElement.lang = { RU:'ru', KG:'ky', EN:'en', ZH:'zh' }[gameState.language] || 'ru';
     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
     renderModeSwitch();
     renderLangSwitch();
@@ -2544,13 +2544,14 @@
       };
     }
 
-    // Fallback for a physics-only round without an LMS scenario.
-    const radius = Number(C.game?.resultRadius || 2.22);
-    const isOutside = item => !!item?.mesh && Math.hypot(item.mesh.position.x, item.mesh.position.z) > radius;
-    return {
-      out: roundPool.chukos.filter(isOutside).length,
-      khanOut: !!roundPool.khan && isOutside(roundPool.khan)
-    };
+    // No active scenario means no round has completed yet (fresh page load,
+    // or briefly while a new ticket is being requested) - nothing has been
+    // knocked out, regardless of where the resting pile's pieces happen to
+    // sit. This used to fall through to a position-based fallback that
+    // measured distance from world (0,0) instead of the pile's actual
+    // centre; since the pile rests far from the origin, that fallback
+    // could count resting pieces as "out" before a single SAKA was thrown.
+    return { out: 0, khanOut: false };
   }
 
   function freezeItemAtCurrentPosition(item) {
@@ -2805,8 +2806,9 @@
     });
 
     // DEBUG ONLY - see the lang-switch markup comment in index.html.
+    const SUPPORTED_LANGS = ['RU', 'EN', 'KG', 'ZH'];
     ui.langSwitch?.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-      const lang = b.dataset.lang === 'KG' ? 'KG' : 'RU';
+      const lang = SUPPORTED_LANGS.includes(b.dataset.lang) ? b.dataset.lang : 'RU';
       if (lang === gameState.language) return;
       gameState.language = lang;
       applyTranslations();
@@ -2877,7 +2879,10 @@
     gameState.denomination = gameState.denominations.includes(preferred) ? preferred : gameState.denominations[0];
     gameState.currency = String(settings.currency || 'KGS').toUpperCase();
     gameState.currencyDisplay = String(settings.currencyDisplay || settings.currency || 'сом');
-    gameState.language = String(settings.language || 'RU').toUpperCase() === 'KG' ? 'KG' : 'RU';
+    {
+      const requested = String(settings.language || 'RU').toUpperCase();
+      gameState.language = ['RU', 'EN', 'KG', 'ZH'].includes(requested) ? requested : 'RU';
+    }
     gameState.mode = String(settings.mode || 'demo').toLowerCase() === 'real' ? 'real' : 'demo';
     gameState.demoAllowed = settings.demoAllowed !== false;
     gameState.demoBalance = Number(settings.demoBalance ?? LMS_CFG.demoBalance ?? 10000);

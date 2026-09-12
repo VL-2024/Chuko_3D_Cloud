@@ -62,7 +62,7 @@ body{display:flex;justify-content:center;align-items:flex-start;overflow:auto;ov
   border:1px solid rgba(117,163,211,.40);border-radius:8px;overflow:hidden;
   background:rgba(3,23,54,.85)
 }
-.lang-switch button{border:0;min-width:28px;padding:3px 6px;background:transparent;color:#8196b2;font-weight:900;font-size:9px;line-height:1.2}
+.lang-switch button{border:0;min-width:24px;padding:3px 5px;background:transparent;color:#8196b2;font-weight:900;font-size:9px;line-height:1.2}
 .lang-switch button.active{background:#24499e;color:#dbe63c}
 .wallet-meta{min-width:0;flex:1}.small-label{font-size:clamp(9px,2.2vw,12px);opacity:.86;line-height:1.08}
 .amount{font-weight:850;font-size:clamp(12px,3.25vw,19px);white-space:nowrap}
