@@ -1872,8 +1872,8 @@
     });
   }
 
-  // Periodic "you're playing with play money" reminder: pulses the DEMO
-  // button every 1-2 completed rounds while in demo mode, so it stays
+  // Periodic "try REAL money" nudge: pulses the REAL button every 1-2
+  // completed rounds while playing in demo mode, so the option stays
   // noticeable without turning into a constant distraction. The threshold
   // is re-rolled (1 or 2) after every pulse for a less mechanical feel.
   let demoNudgeCounter = 0;
@@ -1884,11 +1884,11 @@
     if (demoNudgeCounter < demoNudgeThreshold) return;
     demoNudgeCounter = 0;
     demoNudgeThreshold = 1 + Math.round(Math.random());
-    const btn = ui.modeSwitch?.querySelector('button[data-mode="demo"]');
+    const btn = ui.modeSwitch?.querySelector('button[data-mode="real"]');
     if (!btn) return;
-    btn.classList.remove('demo-nudge');
+    btn.classList.remove('real-nudge');
     void btn.offsetWidth; // restart the animation even if it's still mid-way
-    btn.classList.add('demo-nudge');
+    btn.classList.add('real-nudge');
   }
 
   function renderScore() {
@@ -2637,9 +2637,19 @@
     gameState.resultShown = true;
 
     if (gameState.pendingBalance != null && Number.isFinite(gameState.pendingBalance)) {
-      gameState.balance = Number(gameState.pendingBalance);
-      if (gameState.mode === 'demo') gameState.demoBalance = gameState.balance;
-      else gameState.realBalance = gameState.balance;
+      if (gameState.mode === 'demo') {
+        // Additive: the balance already reflects the stake deduction made
+        // the instant "New Game" was pressed (see requestNewGame()) - just
+        // add the FULL win on top of it, rather than jumping to a
+        // separately-computed final number.
+        gameState.balance = gameState.balance + Number(gameState.ticket.win || 0);
+        gameState.demoBalance = gameState.balance;
+      } else {
+        // REAL: trust the exact figure the LMS returned when the ticket was
+        // created - don't recompute our own total for real money.
+        gameState.balance = Number(gameState.pendingBalance);
+        gameState.realBalance = gameState.balance;
+      }
     }
 
     if (physical.out !== plan.regular || physical.khanOut !== plan.khan) {
@@ -2707,7 +2717,17 @@
     gameState.ticketReady = false;
     gameState.ticket = null;
     clearScenarioRuntime();
+
+    // Optimistic stake deduction: the stake disappears from the displayed
+    // balance the instant "New Game" is pressed, rather than only jumping
+    // once at the very end when the round settles. Rolled back below if the
+    // ticket request itself fails (insufficient funds, session expired,
+    // network error, etc.) so a failed bet never leaves the balance looking
+    // permanently (and wrongly) lower.
+    const balanceBeforeStake = gameState.balance;
+    gameState.balance = Math.max(0, balanceBeforeStake - Number(gameState.denomination || 0));
     renderState();
+
     try {
       const request = {
         gameId:LMS_CFG.gameId || 'CHUKO',
@@ -2740,6 +2760,7 @@
       if (autoPlay.active) scheduleAutoThrow();
     } catch (err) {
       console.error(err);
+      gameState.balance = balanceBeforeStake; // roll back the optimistic deduction - no ticket, no bet
       gameState.phase = 'idle';
       gameState.busy = false;
       gameState.ticketReady = false;
