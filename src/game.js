@@ -207,6 +207,12 @@
   const chukoClampPending = new Set();
   let sakaClampPending = false;
   let roundPhysicsFrozen = false;
+  // World XZ that the scatter direction/metric system pivots on. Recomputed
+  // once per throw in prepareScenarioLandingPlan() from the actual on-screen
+  // centre of the white chalk ring (see ringCenterWorldPoint()) - NOT from
+  // the tuned pile position, which only has to look right for the pile at
+  // rest and is not guaranteed to be the ring's true projected centre.
+  let scatterPivot = { x: 0, z: 0 };
 
   // --- TEMPORARY diagnostics for the "SAKA doesn't touch the pile" issue ---
   // Confirmed fixed (2026-09): the real Havok collision trigger fires
@@ -2077,16 +2083,13 @@
   }
 
   function worldPointForWhiteMetric(angle, targetMetric, y=0.11) {
-    // The angle passed in is always measured around the pile centre
-    // (tuning.pileX/pileZ - see scatterAxisAngle and everything derived
-    // from it), not around the world origin. The radial search below must
-    // pivot on that same point, or "angle" and "metric" stop meaning the
-    // same thing and every placement silently skews toward whichever
-    // direction reduces the pile's offset from the origin (here mostly
-    // -Z, i.e. visibly "down" on screen, since pileZ is a large negative
-    // default).
-    const pileX = Number(tuning.pileX || 0);
-    const pileZ = Number(tuning.pileZ || 0);
+    // The angle passed in is always measured around scatterPivot (the
+    // white ring's true on-screen centre, see updateScatterPivot()), not
+    // around the world origin and not around the tuned pile position -
+    // either mismatch silently skews every placement toward whichever
+    // direction reduces the offset between the two points.
+    const pileX = scatterPivot.x;
+    const pileZ = scatterPivot.z;
     let lo = 0.06;
     let hi = 3.20;
     let best = new BABYLON.Vector3(pileX + Math.cos(angle)*1.5, y, pileZ + Math.sin(angle)*1.5);
@@ -2183,8 +2186,9 @@
     const plan = scenarioRuntime.plan;
     const count = Math.max(0, Math.min(C.pile.chukoCount, Number(plan.regular || 0)));
     const rng = seededRng(`${scenarioRuntime.seed}|landing-plan-v2|${tp.x.toFixed(3)}|${tp.z.toFixed(3)}`);
-    const pileX = Number(tuning.pileX || 0);
-    const pileZ = Number(tuning.pileZ || 0);
+    const pivot = updateScatterPivot(0.11);
+    const pileX = pivot.x;
+    const pileZ = pivot.z;
 
     // Select the actual chükö closest to the SAKA contact point BEFORE the throw.
     const scored = roundPool.chukos.map((item,index)=>({
@@ -3758,6 +3762,46 @@
     const ring = whiteRingCssGeometry();
     if (!p || !ring || ring.rx <= 1 || ring.ry <= 1) return null;
     return Math.hypot((p.x - ring.cx) / ring.rx, (p.y - ring.cy) / ring.ry);
+  }
+
+  // Unprojects the white ring's own on-screen centre back onto the world
+  // ground plane. This is the actual point that "metric 0" refers to -
+  // using it as the pivot for scatter angles guarantees the scatter system
+  // and the in/out judging system (whiteRingMetricForWorld) agree on where
+  // the centre of the circle is, regardless of whether the tuned pile
+  // position happens to match it exactly.
+  function ringCenterWorldPoint(targetY = 0.11) {
+    if (!scene?.activeCamera || !engine || !ui.canvas) return null;
+    const ring = whiteRingCssGeometry();
+    if (!ring) return null;
+    const rect = ui.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const rw = Math.max(1, engine.getRenderWidth());
+    const rh = Math.max(1, engine.getRenderHeight());
+    const renderX = (ring.cx - rect.left) * rw / rect.width;
+    const renderY = (ring.cy - rect.top) * rh / rect.height;
+    try {
+      const camera = scene.activeCamera;
+      const view = camera.getViewMatrix();
+      const proj = camera.getProjectionMatrix();
+      const near = BABYLON.Vector3.Unproject(new BABYLON.Vector3(renderX, renderY, 0), rw, rh, BABYLON.Matrix.Identity(), view, proj);
+      const far = BABYLON.Vector3.Unproject(new BABYLON.Vector3(renderX, renderY, 1), rw, rh, BABYLON.Matrix.Identity(), view, proj);
+      const dir = far.subtract(near);
+      if (Math.abs(dir.y) < 1e-6) return null;
+      const t = (targetY - near.y) / dir.y;
+      if (!Number.isFinite(t)) return null;
+      const point = near.add(dir.scale(t));
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.z)) return null;
+      return { x: point.x, z: point.z };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function updateScatterPivot(y = 0.11) {
+    const computed = ringCenterWorldPoint(y);
+    scatterPivot = computed || { x: Number(tuning.pileX || 0), z: Number(tuning.pileZ || 0) };
+    return scatterPivot;
   }
 
   function containSakaInsidePlayCircle() {
