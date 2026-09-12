@@ -2061,15 +2061,19 @@
   function showResultToast() {
     if (!gameState.ticket || !ui.toast) return;
     const win = Number(gameState.ticket.win || 0);
-    const khanOut = !!computePhysicalResult().khanOut;
     ui.toast.classList.remove('zero', 'khan-win', 'show');
+    if (win <= 0) return; // no popup at all when there's nothing to celebrate
+    const khanOut = !!computePhysicalResult().khanOut;
     ui.toast.textContent = formatMoney(win);
-    if (win <= 0) ui.toast.classList.add('zero');
-    else if (khanOut) { ui.toast.classList.add('khan-win'); launchCelebration({ khan: true }); }
+    if (khanOut) { ui.toast.classList.add('khan-win'); launchCelebration({ khan: true }); }
     else launchCelebration({ khan: false });
     void ui.toast.offsetWidth;
     ui.toast.classList.add('show');
-    if (win > 0) playEffectFile('win', 0.78);
+    playEffectFile('win', 0.78);
+    // Floats out and fades on its own (see @keyframes resultNumberFloat) -
+    // this just cleans up the class afterward instead of leaving it stuck
+    // on-screen until the next round starts.
+    ui.toast.addEventListener('animationend', () => ui.toast.classList.remove('show'), { once: true });
   }
 
   function hideGameResult() {
