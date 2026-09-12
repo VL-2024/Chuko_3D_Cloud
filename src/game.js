@@ -207,11 +207,10 @@
   const chukoClampPending = new Set();
   let sakaClampPending = false;
   let roundPhysicsFrozen = false;
-  // World XZ that the scatter direction/metric system pivots on. Recomputed
-  // once per throw in prepareScenarioLandingPlan() from the actual on-screen
-  // centre of the white chalk ring (see ringCenterWorldPoint()) - NOT from
-  // the tuned pile position, which only has to look right for the pile at
-  // rest and is not guaranteed to be the ring's true projected centre.
+  // World XZ that the scatter direction/metric system pivots on. Set from
+  // the tuning.scatterPivotX/Z sliders ("ЦЕНТР РАЗЛЁТА" in the tune panel) -
+  // calibrate these by eye after a throw if the ring of remaining chükö
+  // looks off-centre relative to the white line on the carpet.
   let scatterPivot = { x: 0, z: 0 };
 
   // --- TEMPORARY diagnostics for the "SAKA doesn't touch the pile" issue ---
@@ -247,6 +246,8 @@
     bgY: -44,
     pileX: -0.10,
     pileZ: -1.80,
+    scatterPivotX: -0.10,
+    scatterPivotZ: -1.80,
     spreadX: 0.52,
     spreadZ: 0.82,
     chukoScale: 0.62,
@@ -619,7 +620,7 @@
 
   function tuneNumberLabel(key, value) {
     const v = Number(value);
-    if (['fieldWidth'].includes(key)) return `${Math.round(v)}vw`;
+    if (['fieldWidth'].includes(key)) return `${Math.round(v)}%`;
     if (['fieldBottom','fieldX','bgX','bgY'].includes(key)) return `${Math.round(v)}px`;
     if (['bgScale','chukoScale','chukoModelScale','khanModelScale','sakaModelScale'].includes(key)) return `${v.toFixed(2)}×`;
     if (['sakaModelYawDeg','sakaModelPitchDeg','sakaModelRollDeg'].includes(key)) return `${Math.round(v)}°`; 
@@ -2223,7 +2224,7 @@
     const plan = scenarioRuntime.plan;
     const count = Math.max(0, Math.min(C.pile.chukoCount, Number(plan.regular || 0)));
     const rng = seededRng(`${scenarioRuntime.seed}|landing-plan-v2|${tp.x.toFixed(3)}|${tp.z.toFixed(3)}`);
-    const pivot = updateScatterPivot(0.11);
+    const pivot = updateScatterPivot();
     const pileX = pivot.x;
     const pileZ = pivot.z;
 
@@ -3809,48 +3810,20 @@
     return Math.hypot((p.x - ring.cx) / ring.rx, (p.y - ring.cy) / ring.ry);
   }
 
-  // Unprojects the white ring's own on-screen centre back onto the world
-  // ground plane. This is the actual point that "metric 0" refers to -
-  // using it as the pivot for scatter angles guarantees the scatter system
-  // and the in/out judging system (whiteRingMetricForWorld) agree on where
-  // the centre of the circle is, regardless of whether the tuned pile
-  // position happens to match it exactly.
-  // Finds the world (x,z) that minimises whiteRingMetricForWorld() - i.e. the
-  // actual lowest-metric point on the ground plane, which by definition is
-  // the true visual centre of the white ring. This replaces an earlier
-  // attempt that inverted the camera's projection matrices by hand
-  // (Vector3.Unproject) to find the same point: that math is easy to get
-  // subtly wrong in a way that's hard to notice without live testing, and
-  // it was - the whole "inside" cluster ended up sitting low, with a gap of
-  // bare dirt at the top of the ring. A hill-climb search using the exact
-  // same metric function that already correctly judges in/out (verified
-  // directly against the field texture) cannot disagree with itself.
-  function ringCenterWorldPoint(targetY = 0.11) {
-    if (!scene?.activeCamera) return null;
-    let x = Number(tuning.pileX || 0);
-    let z = Number(tuning.pileZ || 0);
-    let best = whiteRingMetricForWorld(new BABYLON.Vector3(x, targetY, z));
-    if (best == null) return null;
-
-    let step = 0.6;
-    const dirs = [[1,0],[-1,0],[0,1],[0,-1],[0.7071,0.7071],[-0.7071,0.7071],[0.7071,-0.7071],[-0.7071,-0.7071]];
-    for (let pass=0; pass<40 && step>0.0015; pass++) {
-      let improved = false;
-      for (const [dx,dz] of dirs) {
-        const nx = x + dx*step;
-        const nz = z + dz*step;
-        const m = whiteRingMetricForWorld(new BABYLON.Vector3(nx, targetY, nz));
-        if (m != null && m < best) { best = m; x = nx; z = nz; improved = true; }
-      }
-      if (!improved) step *= 0.5;
-    }
-    if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
-    return { x, z };
-  }
-
-  function updateScatterPivot(y = 0.11) {
-    const computed = ringCenterWorldPoint(y);
-    scatterPivot = computed || { x: Number(tuning.pileX || 0), z: Number(tuning.pileZ || 0) };
+  // Two automated attempts to compute this point (camera-matrix unprojection,
+  // then a metric-minimising hill-climb) each looked plausible on paper but
+  // produced a visibly wrong result in the actual browser (verified only by
+  // screenshots, since this sandbox has no WebGL) - the second one was worse
+  // than the first. Both are removed. The scatter pivot is now a pair of
+  // plain tuning values the person calibrating the composition sets by eye
+  // (see "ЦЕНТР РАЗЛЁТА" in the tune panel) and defaults to the pile
+  // position. This is less automatic, but it is the one method that can
+  // actually be verified against what is on screen.
+  function updateScatterPivot() {
+    scatterPivot = {
+      x: Number(tuning.scatterPivotX ?? tuning.pileX ?? 0),
+      z: Number(tuning.scatterPivotZ ?? tuning.pileZ ?? 0)
+    };
     return scatterPivot;
   }
 
