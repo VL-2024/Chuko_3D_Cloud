@@ -3815,32 +3815,37 @@
   // and the in/out judging system (whiteRingMetricForWorld) agree on where
   // the centre of the circle is, regardless of whether the tuned pile
   // position happens to match it exactly.
+  // Finds the world (x,z) that minimises whiteRingMetricForWorld() - i.e. the
+  // actual lowest-metric point on the ground plane, which by definition is
+  // the true visual centre of the white ring. This replaces an earlier
+  // attempt that inverted the camera's projection matrices by hand
+  // (Vector3.Unproject) to find the same point: that math is easy to get
+  // subtly wrong in a way that's hard to notice without live testing, and
+  // it was - the whole "inside" cluster ended up sitting low, with a gap of
+  // bare dirt at the top of the ring. A hill-climb search using the exact
+  // same metric function that already correctly judges in/out (verified
+  // directly against the field texture) cannot disagree with itself.
   function ringCenterWorldPoint(targetY = 0.11) {
-    if (!scene?.activeCamera || !engine || !ui.canvas) return null;
-    const ring = whiteRingCssGeometry();
-    if (!ring) return null;
-    const rect = ui.canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return null;
-    const rw = Math.max(1, engine.getRenderWidth());
-    const rh = Math.max(1, engine.getRenderHeight());
-    const renderX = (ring.cx - rect.left) * rw / rect.width;
-    const renderY = (ring.cy - rect.top) * rh / rect.height;
-    try {
-      const camera = scene.activeCamera;
-      const view = camera.getViewMatrix();
-      const proj = camera.getProjectionMatrix();
-      const near = BABYLON.Vector3.Unproject(new BABYLON.Vector3(renderX, renderY, 0), rw, rh, BABYLON.Matrix.Identity(), view, proj);
-      const far = BABYLON.Vector3.Unproject(new BABYLON.Vector3(renderX, renderY, 1), rw, rh, BABYLON.Matrix.Identity(), view, proj);
-      const dir = far.subtract(near);
-      if (Math.abs(dir.y) < 1e-6) return null;
-      const t = (targetY - near.y) / dir.y;
-      if (!Number.isFinite(t)) return null;
-      const point = near.add(dir.scale(t));
-      if (!Number.isFinite(point.x) || !Number.isFinite(point.z)) return null;
-      return { x: point.x, z: point.z };
-    } catch (_) {
-      return null;
+    if (!scene?.activeCamera) return null;
+    let x = Number(tuning.pileX || 0);
+    let z = Number(tuning.pileZ || 0);
+    let best = whiteRingMetricForWorld(new BABYLON.Vector3(x, targetY, z));
+    if (best == null) return null;
+
+    let step = 0.6;
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1],[0.7071,0.7071],[-0.7071,0.7071],[0.7071,-0.7071],[-0.7071,-0.7071]];
+    for (let pass=0; pass<40 && step>0.0015; pass++) {
+      let improved = false;
+      for (const [dx,dz] of dirs) {
+        const nx = x + dx*step;
+        const nz = z + dz*step;
+        const m = whiteRingMetricForWorld(new BABYLON.Vector3(nx, targetY, nz));
+        if (m != null && m < best) { best = m; x = nx; z = nz; improved = true; }
+      }
+      if (!improved) step *= 0.5;
     }
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return null;
+    return { x, z };
   }
 
   function updateScatterPivot(y = 0.11) {
