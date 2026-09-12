@@ -13,7 +13,9 @@
     bodyCount: document.getElementById('bodyCount'),
     renderScale: document.getElementById('renderScale'),
     badge: document.getElementById('physicsBadge'),
-    hint: document.getElementById('hint'),
+    hintBar: document.getElementById('hint-bar'),
+    hint: document.getElementById('hint-text'),
+    hintToggle: document.getElementById('hint-toggle'),
     aimPower: document.getElementById('aimPower'),
     fatal: document.getElementById('fatal'),
     fatalText: document.getElementById('fatalText'),
@@ -2741,6 +2743,16 @@
   }
 
   function bindGameUi() {
+    // Hint text collapse/expand - purely a display toggle, the underlying
+    // text keeps updating normally either way.
+    ui.hintToggle?.addEventListener('click', () => {
+      const collapsed = ui.hint?.classList.toggle('hint-collapsed');
+      if (ui.hintToggle) {
+        ui.hintToggle.textContent = collapsed ? 'i' : '×';
+        ui.hintToggle.setAttribute('aria-label', collapsed ? 'Показать подсказку' : 'Скрыть подсказку');
+      }
+    });
+
     // Browser audio starts only after a user gesture.
     document.addEventListener('pointerdown', unlockAudio, { once:true, capture:true });
 
