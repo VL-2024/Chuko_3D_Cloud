@@ -10,6 +10,33 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>ЧҮКӨ Modern 3D — LMS/scenarios 0.13</title>
+<script>
+// In-app browsers (Telegram, Instagram, VK, etc.) run on WebViews where the
+// CSS `dvh` unit is either unsupported or reports an inconsistent value,
+// which stretched the whole .shell container far taller than intended and
+// spread the 3D scene out over that extra height. window.visualViewport is
+// the one API that reliably reports the ACTUAL visible area across these
+// WebViews, so it drives the --app-vh custom property CSS falls back to.
+// Runs synchronously before first paint and stays live afterward, since
+// some of these in-app browsers resize their own chrome (URL bar, etc.)
+// after the page has already loaded.
+(function () {
+  function setAppVh() {
+    var h = (window.visualViewport && window.visualViewport.height)
+      || window.innerHeight
+      || document.documentElement.clientHeight
+      || 0;
+    if (h > 0) document.documentElement.style.setProperty('--app-vh', (h / 100) + 'px');
+  }
+  setAppVh();
+  window.addEventListener('resize', setAppVh);
+  window.addEventListener('orientationchange', setAppVh);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', setAppVh);
+    window.visualViewport.addEventListener('scroll', setAppVh);
+  }
+})();
+</script>
 <link rel="stylesheet" href="styles.css?v=0.13.0">
 </head>
 <body>
