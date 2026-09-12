@@ -18,6 +18,7 @@ const TABLE = {
   balance:          { RU:'Баланс',                    EN:'Balance',                      KG:'Баланс',                       ZH:'余额' },
   stake:            { RU:'Ставка',                     EN:'Stake',                        KG:'Коюм',                         ZH:'投注额' },
   title:            { RU:'ЧҮКӨ',                       EN:'CHUKO',                        KG:'ЧҮКӨ',                         ZH:'CHUKO' },
+  subtitle:         { RU:'Выбей Хана',                  EN:'Knock Out the Khan',           KG:'Ханды жык',                    ZH:'击败可汗' },
 
   newGame:          { RU:'Новая игра',                 EN:'New Game',                     KG:'Жаңы оюн',                     ZH:'新游戏' },
   makeThrow:        { RU:'Сделать бросок',              EN:'Throw',                        KG:'Ыргытуу',                      ZH:'投掷' },

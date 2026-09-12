@@ -1872,6 +1872,25 @@
     });
   }
 
+  // Periodic "you're playing with play money" reminder: pulses the DEMO
+  // button every 1-2 completed rounds while in demo mode, so it stays
+  // noticeable without turning into a constant distraction. The threshold
+  // is re-rolled (1 or 2) after every pulse for a less mechanical feel.
+  let demoNudgeCounter = 0;
+  let demoNudgeThreshold = 1 + Math.round(Math.random());
+  function maybeNudgeDemoBadge() {
+    if (gameState.mode !== 'demo') { demoNudgeCounter = 0; return; }
+    demoNudgeCounter += 1;
+    if (demoNudgeCounter < demoNudgeThreshold) return;
+    demoNudgeCounter = 0;
+    demoNudgeThreshold = 1 + Math.round(Math.random());
+    const btn = ui.modeSwitch?.querySelector('button[data-mode="demo"]');
+    if (!btn) return;
+    btn.classList.remove('demo-nudge');
+    void btn.offsetWidth; // restart the animation even if it's still mid-way
+    btn.classList.add('demo-nudge');
+  }
+
   function renderScore() {
     const physical = computePhysicalResult();
     if (ui.knocked) ui.knocked.textContent = String(physical.out || 0);
@@ -2632,6 +2651,7 @@
     gameState.busy = false;
     showResultToast();
     saveCompletedTicketLocally(gameState.ticket, gameState.mode);
+    maybeNudgeDemoBadge();
     renderState();
     LMS?.emit?.('X2_GAME_ROUND_COMPLETE', {
       gameId:LMS_CFG.gameId || 'CHUKO',
