@@ -240,26 +240,26 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 340,
-    fieldX: 0,
+    fieldBottom: 414,
+    fieldX: 2,
     bgScale: 1.01,
     bgX: 0,
-    bgY: 8,
-    pileX: -0.08,
-    pileZ: -1.20,
-    spreadX: 0.54,
-    spreadZ: 0.68,
-    chukoScale: 0.60,
-    cameraRadius: 8.95,
-    cameraTargetX: 0.00,
-    cameraTargetZ: 0.18,
+    bgY: -44,
+    pileX: -0.10,
+    pileZ: -1.80,
+    spreadX: 0.52,
+    spreadZ: 0.82,
+    chukoScale: 0.62,
+    cameraRadius: 8.40,
+    cameraTargetX: -0.04,
+    cameraTargetZ: 0.26,
     sakaX: -0.16,
     sakaZ: 2.85,
-    chukoModelScale: 1.10,
-    chukoModelY: -0.16,
-    khanModelScale: 1.22,
-    khanModelY: 0.01,
-    sakaModelScale: 0.90,
+    chukoModelScale: 1.22,
+    chukoModelY: -0.14,
+    khanModelScale: 0.98,
+    khanModelY: -0.15,
+    sakaModelScale: 0.78,
     sakaModelY: 0.00,
     sakaModelYawDeg: 0,
     sakaModelPitchDeg: -100,
@@ -2164,6 +2164,43 @@
     return best;
   }
 
+  // The safe-rect check above is anchored to the CANVAS edges, not to the
+  // ring's actual on-screen position. Since the ring normally sits much
+  // closer to the top of the canvas than to the bottom (the bottom third of
+  // the screen is reserved for the score/action/denom UI), a piece aimed
+  // "up" hits the top margin far sooner than one aimed "down" hits the
+  // bottom margin - so upward throws were getting squashed back toward the
+  // centre while downward ones reached their full, intended spread. That
+  // reads as "the scatter leans toward the bottom half" even though the
+  // angles themselves are chosen with no such bias.
+  //
+  // Fix: sample many directions around the pivot, find the tightest
+  // (worst-case) direction's safe metric, and cap every direction to that
+  // same value. The result may sit a little more conservatively than the
+  // ideal outsideMax in every direction, but it is now symmetric - no
+  // direction is special-cased against another.
+  function computeUniformOutsideMetricCap(baseMetric, y = 0.10, samples = 16) {
+    if (!ui.canvas) return baseMetric;
+    const rect = ui.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return baseMetric;
+    const safe = { left: rect.left + rect.width*0.055, right: rect.right - rect.width*0.055,
+                   top: rect.top + rect.height*0.070, bottom: rect.bottom - rect.height*0.120 };
+    let minMetric = baseMetric;
+    for (let i=0;i<samples;i++) {
+      const angle = (i/samples) * Math.PI * 2;
+      let metric = baseMetric;
+      for (let iter=0;iter<12;iter++) {
+        const point = worldPointForWhiteMetric(angle, metric, y);
+        const css = point ? projectWorldToCss(point) : null;
+        if (css && css.x>=safe.left && css.x<=safe.right && css.y>=safe.top && css.y<=safe.bottom) break;
+        metric -= 0.04;
+        if (metric <= 1.02) { metric = 1.02; break; }
+      }
+      if (metric < minMetric) minMetric = metric;
+    }
+    return minMetric;
+  }
+
   function outsideFanOffset(order, count, step) {
     if (count <= 1) return 0;
     // Alternate left/right around the impact direction:
@@ -2231,6 +2268,14 @@
     const durMax = Number(C.game?.scatterDurationMaxMs || 690);
     const delayMax = Number(C.game?.scatterDelayMaxMs || 105);
 
+    // See computeUniformOutsideMetricCap() above: without this, pieces aimed
+    // toward whichever screen direction has the least safe margin (usually
+    // "up", since the bottom of the screen is reserved for UI) get clamped
+    // back much harder than pieces aimed the other way, making the scatter
+    // look biased toward one half of the circle. Capping every direction to
+    // the same worst-case-safe value keeps it visually even.
+    const outsideMetricCap = computeUniformOutsideMetricCap(outsideMax, 0.10);
+
     // OUT points: the WHITE CHALK CIRCLE is the boundary.
     // Place pieces clearly outside it (metric > 1), but not at the outer green edge.
     // Angles fan widely around the actual impact direction.
@@ -2240,7 +2285,7 @@
 
       const offset = outsideFanOffset(order, targetIds.length, fanStep);
       const angle = scatterAxisAngle + offset + (rng()-0.5)*fanJitter;
-      const metric = outsideMin + (outsideMax-outsideMin)*(0.20 + 0.80*rng());
+      const metric = Math.min(outsideMetricCap, outsideMin + (outsideMax-outsideMin)*(0.20 + 0.80*rng()));
       const y = 0.095 + rng()*0.020;
 
       let targetPosition = chooseSeparatedWhiteMetricPoint(
@@ -2320,7 +2365,7 @@
         : scatterAxisAngle + Math.PI*0.82 + (rng()-0.5)*0.34;
 
       const metric = targeted
-        ? outsideMin + (outsideMax-outsideMin)*(0.45+0.55*rng())
+        ? Math.min(outsideMetricCap, outsideMin + (outsideMax-outsideMin)*(0.45+0.55*rng()))
         : 0.26 + rng()*0.14;
 
       // NB: targeted (out) and non-targeted (still inside) KHAN previously used
