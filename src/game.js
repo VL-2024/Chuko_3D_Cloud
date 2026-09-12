@@ -239,7 +239,7 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 298,
+    fieldBottom: 420,
     fieldX: 2,
     bgScale: 1.01,
     bgX: 16,
@@ -595,7 +595,12 @@
     // any time the shell's absolute pixel size differs between devices.
     const shellEl = ui.shellEl || (ui.shellEl = document.getElementById('shell'));
     const shellRect = shellEl ? shellEl.getBoundingClientRect() : null;
-    const REF_W = 941, REF_H = 1672;
+    // Reference size is the shell height these numbers were actually tuned
+    // at (via the slider, on a live device), NOT the abstract 941x1672
+    // design-canvas ratio - using 1672 here previously made every value
+    // apply as a much smaller fraction of shell height than what was tuned,
+    // silently dropping the field lower on every device at once.
+    const REF_H = 750, REF_W = REF_H * (941 / 1672);
     const scaleW = shellRect && shellRect.width ? shellRect.width / REF_W : 1;
     const scaleH = shellRect && shellRect.height ? shellRect.height / REF_H : 1;
 
