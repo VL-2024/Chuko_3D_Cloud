@@ -102,9 +102,8 @@
   let lowFpsStartedAt = 0;
   let adaptiveScaleApplied = false;
   let roundIndex = 0;
-  let aimDots = [];
   let aimTarget = null;
-  let aimDotMaterial = null;
+  let smoothedAimTarget = null;
   let aimState = { dragging: false, pointerId: null, power: 0, guideDir: null, targetPoint: null, tapCandidate: false, downX: 0, downY: 0 };
   let throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
   let roundSeed = 1;
@@ -241,16 +240,16 @@
   const TUNE_STORAGE_KEY = 'chuko3d-v0113-stable-game';
   const TUNE_DEFAULTS = Object.freeze({
     fieldWidth: 88,
-    fieldBottom: 312,
+    fieldBottom: 298,
     fieldX: 2,
     bgScale: 1.01,
-    bgX: 0,
+    bgX: 16,
     bgY: -44,
     pileX: -0.10,
     pileZ: -1.80,
     scatterPivotX: -0.10,
     scatterPivotZ: -1.80,
-    spreadX: 0.52,
+    spreadX: 0.59,
     spreadZ: 0.82,
     chukoScale: 0.62,
     cameraRadius: 8.40,
@@ -2891,7 +2890,7 @@
     throwState = { active: false, targetPoint: null, guideDir: null, power: 0, impactBoosted: false, flightTime: 0 };
     hideGameResult();
     ui.hint.textContent = gameState.ticketReady && gameState.ticket
-      ? `Билет #${gameState.ticket.ticketId} · ${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА`
+      ? `${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА`
       : 'Выберите номинал и нажмите «Новая игра»';
     ui.hint.style.opacity = '1';
     resetAimState();
@@ -2948,13 +2947,14 @@
     updateSakaShadow();
     updateBodyCount();
 
-    // Keep the visible default trajectory before the user touches SAKA.
+    // Keep sensible aim defaults for a quick tap-throw (no drag), but don't
+    // show the reticle until the person actually starts dragging SAKA.
     const defaultGeo = aimGeometry();
     const defaultPoint = snapLandingPointToNearestChuko({ x: defaultGeo.center.x, z: defaultGeo.center.z });
     aimState.power = 0.58;
     aimState.guideDir = defaultGeo.toCenter;
     aimState.targetPoint = defaultPoint;
-    updateAimVisuals(defaultPoint, 0.58);
+    hideAimVisuals();
 
     // Useful while profiling on iPhone: this measures JS reset work only.
     const resetMs = performance.now() - resetStartedAt;
@@ -3091,24 +3091,6 @@
   }
 
   function createAimVisuals() {
-    aimDotMaterial = new BABYLON.StandardMaterial('aim-dot-mat', scene);
-    aimDotMaterial.diffuseColor = new BABYLON.Color3(0.98, 1.00, 0.86);
-    aimDotMaterial.emissiveColor = new BABYLON.Color3(0.78, 0.84, 0.18);
-    aimDotMaterial.alpha = 0.55;
-    aimDotMaterial.disableDepthWrite = true;
-
-    for (let i = 0; i < 14; i++) {
-      const dot = BABYLON.MeshBuilder.CreateSphere(`aim-dot-${i}`, {
-        diameter: i === 13 ? 0.060 : 0.038,
-        segments: 5
-      }, scene);
-      dot.material = aimDotMaterial;
-      dot.isPickable = false;
-      dot.renderingGroupId = 2;
-      dot.setEnabled(false);
-      aimDots.push(dot);
-    }
-
     const targetMat = new BABYLON.StandardMaterial('aim-target-mat', scene);
     targetMat.diffuseColor = new BABYLON.Color3(0.90, 0.94, 0.20);
     targetMat.emissiveColor = new BABYLON.Color3(0.30, 0.34, 0.03);
@@ -3126,7 +3108,6 @@
   }
 
   function hideAimVisuals() {
-    aimDots.forEach(dot => dot.setEnabled(false));
     if (aimTarget) aimTarget.setEnabled(false);
   }
 
@@ -3187,21 +3168,9 @@
   }
 
   function updateAimVisuals(target2, power) {
-    if (!saka || !aimDots.length) return;
-    const s0 = throwStartPoint();
-    const start = new BABYLON.Vector3(s0.x, s0.y, s0.z);
-    const target = new BABYLON.Vector3(target2.x, ballisticTargetYForAim(), target2.z);
-    const ballistic = ballisticForApex(start, target, power);
-    const flightTime = ballistic.flightTime;
-    const v = ballistic.velocity;
-
-    aimDots.forEach((dot, i) => {
-      const t = flightTime * ((i + 1) / (aimDots.length + 1));
-      const p = start.add(v.scale(t)).add(new BABYLON.Vector3(0, 0.5 * C.physics.gravity * t * t, 0));
-      dot.position.copyFrom(p);
-      dot.setEnabled(i % 3 === 0 || i === aimDots.length - 1);
-    });
-
+    if (!saka) return;
+    // Trajectory preview removed per request - only the landing marker
+    // (torus ring) is shown now, and only while actively dragging.
     if (aimTarget) {
       aimTarget.position.set(target2.x, 0.055, target2.z);
       aimTarget.scaling.setAll(0.86 + 0.20 * clamp01(power));
@@ -3211,6 +3180,7 @@
 
   function resetAimState() {
     aimState = { dragging: false, pointerId: null, power: 0, guideDir: null, targetPoint: null, tapCandidate: false, downX: 0, downY: 0 };
+    smoothedAimTarget = null;
   }
 
   function canvasPointer(e) {
@@ -3299,9 +3269,21 @@
     // v0.5 keeps the precise v0.4.2 camera-aware 2D aiming disc.
     // This removes the old non-linear ray/power mapping and fixes horizontal mirroring.
     const rawTargetPoint = targetPointFromDrag(dx, dy, maxPull);
-    const targetPoint = C.game?.sakaAimSnapLive !== false
+    const snappedPoint = C.game?.sakaAimSnapLive !== false
       ? snapLandingPointToNearestChuko(rawTargetPoint)
       : rawTargetPoint;
+
+    // snapLandingPointToNearestChuko() is a nearest-neighbour search, so the
+    // snapped point can jump discretely from one chükö to another as the
+    // finger crosses the boundary between their "closest" zones. Gliding the
+    // displayed/aimed point toward it each update (instead of assigning it
+    // directly) turns that jump into a smooth slide.
+    if (!smoothedAimTarget) smoothedAimTarget = { x: snappedPoint.x, z: snappedPoint.z };
+    const smoothing = 0.30;
+    smoothedAimTarget.x += (snappedPoint.x - smoothedAimTarget.x) * smoothing;
+    smoothedAimTarget.z += (snappedPoint.z - smoothedAimTarget.z) * smoothing;
+    const targetPoint = { x: smoothedAimTarget.x, z: smoothedAimTarget.z };
+
     const geo = aimGeometry();
     const guideDir = normalize2(
       targetPoint.x - geo.origin.x,
@@ -3349,6 +3331,7 @@
       aimState.power = 0;
       aimState.guideDir = null;
       aimState.targetPoint = null;
+      smoothedAimTarget = null;
       ui.canvas.setPointerCapture?.(e.pointerId);
       ui.hint.textContent = 'Тяните назад: влево пальцем → прицел вправо · дальше — сила';
       e.preventDefault();
@@ -3391,9 +3374,9 @@
         const geo = aimGeometry();
         const defaultPoint = snapLandingPointToNearestChuko({ x: geo.center.x, z: geo.center.z });
         aimState.targetPoint = defaultPoint;
-        updateAimVisuals(defaultPoint, 0.58);
+        hideAimVisuals();
         if (ui.aimPower) ui.aimPower.hidden = true;
-        ui.hint.textContent = gameState.ticket ? `Билет #${gameState.ticket.ticketId} · ${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА` : 'Нажмите «Новая игра»';
+        ui.hint.textContent = gameState.ticket ? `${gameState.denomination} ${gameState.currencyDisplay} · потяните САКА` : 'Нажмите «Новая игра»';
       }
       aimState.tapCandidate = false;
     });
@@ -3426,9 +3409,6 @@
     renderState();
     playEffectFile('throw', 0.82);
     if (ui.aimPower) ui.aimPower.hidden = true;
-    // Keep the selected ring visible during the flight so the exact contact can
-    // be checked visually. Only hide the dotted guide.
-    aimDots.forEach(dot => dot.setEnabled(false));
 
     let guideDir;
     let power;
